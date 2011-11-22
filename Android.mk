@@ -12,7 +12,8 @@ LOCAL_SRC_FILES := \
     sim.c \
     sms.c \
     util.c \
-
+    pwr.c \
+    disp.c
 LOCAL_SHARED_LIBRARIES := \
     libcutils libutils libril
 
@@ -21,7 +22,15 @@ LOCAL_STATIC_LIBRARIES := libsamsung-ipc
 # for asprinf
 LOCAL_CFLAGS := -D_GNU_SOURCE
 
+ifeq ($(TARGET_DEVICE),crespo)
+	LOCAL_CFLAGS += -DDEVICE_CRESPO
+endif
+ifeq ($(TARGET_DEVICE),h1)
+	LOCAL_CFLAGS += -DDEVICE_H1
+endif
+
 LOCAL_C_INCLUDES := external/libsamsung-ipc/include
+LOCAL_C_INCLUDES += hardware/ril/libsamsung-ipc/include
 
 LOCAL_MODULE_TAGS := optional
 

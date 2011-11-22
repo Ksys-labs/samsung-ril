@@ -27,26 +27,48 @@ typedef enum {
 	SIM_SERVICE_PROVIDER_PERSO	= 9,
 } SIM_Status;
 
+typedef enum {
+	POWER_MODE_LPM			= 0,
+	POWER_MODE_NORMAL		= 2,
+	POWER_MODE_SIM_INIT_COMPLETE	= 4,
+} Modem_PowerMode;
+
+// Move RIL_Token token_ps, token_cs; here
+struct ril_tokens {
+	RIL_Token radio_power;
+	RIL_Token get_imei;
+	RIL_Token get_imeisv;
+	RIL_Token baseband_version;
+
+	RIL_Token registration_state;
+	RIL_Token gprs_registration_state;
+	RIL_Token operator;
+
+	RIL_Token send_sms;
+};
+
+
 struct radio_state {
 	RIL_RadioState radio_state;
 	RIL_CardState card_state;
+	SIM_Status sim_status;
+	Modem_PowerMode power_mode;
 
-	RIL_Token token_imei;
-	RIL_Token token_imeisv;
-
-	RIL_Token token_baseband_ver;
+	struct ril_tokens tokens;
 
 	struct ipc_net_regist netinfo;
+	struct ipc_net_regist gprs_netinfo;
+	struct ipc_net_current_plmn plmndata;
 
-	/* SIM status - RIL_REQUEST_GET_SIM_STATUS */
-	SIM_Status sim_status;
-
-	/* Samsung H1 baseband returns bogus request id for NET_REGIST GETs */
-	RIL_Token token_ps, token_cs;
+	unsigned char msg_tpid_lock;
+	char *msg_pdu;
 };
 
+void RadioTokensCheck(void);
 int getRequestId(RIL_Token token);
 RIL_Token getToken(int id);
+
+void radio_init_lpm(void);
 
 /* Call */
 void requestCallList(RIL_Token t);
@@ -92,8 +114,17 @@ void respondSmsIncoming(RIL_Token t, void *data, int length);
 void requestSendSmsEx(RIL_Token t, void *data, size_t datalen, unsigned char hint);
 void requestSendSms(RIL_Token t, void *data, size_t datalen);
 void requestSendSmsExpectMore(RIL_Token t, void *data, size_t datalen);
-void requestSmsAcknowledge(RIL_Token t);
+void requestSmsAcknowledge(RIL_Token t, void *data, size_t datalen);
+void respondSmsDeviceReady(RIL_Token t, struct ipc_message_info *info);
 
 void requestIMSI(RIL_Token t);
 void respondIMSI(struct ipc_message_info *request);
 
+/* PWR */
+void respondPowerUp(void);
+void respondPowerPhoneState(struct ipc_message_info *info);
+void requestPower(RIL_Token t, void *data, size_t datalen);
+
+/* DISP */
+void respondIconSignalStrength(RIL_Token t, void *data, int length);
+void respondSignalStrength(RIL_Token t, void *data, int length);

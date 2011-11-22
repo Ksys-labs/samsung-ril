@@ -17,6 +17,10 @@ extern struct ipc_client *ipc_client;
  */
 void updateRadioState(SIM_Status status)
 {
+	/* If power mode isn't at least normal, don't update RIL state */
+	if(radio.power_mode < POWER_MODE_NORMAL)
+		return;
+
 	switch(status) {
 		case SIM_READY:
 			radio.radio_state = RADIO_STATE_SIM_READY;
@@ -39,6 +43,7 @@ void updateRadioState(SIM_Status status)
 			break;
 	}
 
+	RadioTokensCheck();
 	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED, NULL, 0);
 }
 
@@ -57,6 +62,15 @@ void updateRadioState(SIM_Status status)
 void respondSimStatusChanged(RIL_Token t, void *data, int length)
 {
 	struct ipc_sec_pin_status_noti *pin_status = (struct ipc_sec_pin_status_noti*)data;
+
+	/* Don't consider this if modem isn't in normal power mode. */
+	if(radio.power_mode < POWER_MODE_NORMAL)
+		return;
+
+	if(radio.power_mode == POWER_MODE_NORMAL && radio.tokens.radio_power != 0) {
+		RIL_onRequestComplete(radio.tokens.radio_power, RIL_E_SUCCESS, NULL, 0);
+		radio.tokens.radio_power = 0;
+	}
 
 	/* Determine SIM status */
 	switch(pin_status->type) {
@@ -340,11 +354,7 @@ void requestEnterSimPin(RIL_Token t, void *data, size_t datalen)
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 	}
 
-	memset(&pin_status, 0, sizeof(pin_status));
-
-	pin_status.type = IPC_SEC_PIN_TYPE_PIN1;
-	pin_status.length1 = strlen(pin);
-	memcpy(pin_status.pin1, pin, strlen(pin));
+	ipc_sec_pin_status_set_setup(&pin_status, IPC_SEC_PIN_TYPE_PIN1, pin, NULL);
 
 	ipc_client_send_set(IPC_SEC_PIN_STATUS, getRequestId(t), (unsigned char*)&pin_status, sizeof(pin_status));
 

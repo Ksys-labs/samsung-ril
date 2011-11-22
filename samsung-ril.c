@@ -1,3 +1,5 @@
+#include <time.h>
+
 #include <telephony/ril.h>
 
 #include <radio.h>
@@ -9,17 +11,23 @@
 #include "samsung-ril.h"
 #include "util.h"
 
-#define RIL_VERSION_STRING "Samsung H1 RIL"
+#define RIL_VERSION_STRING "Samsung RIL"
 
-struct radio_state radio;
 const struct RIL_Env *rilenv;
+struct radio_state radio;
+
 struct ipc_client *ipc_client;
+int client_fmt_fd = -1;
+
+/*
+ * Token-related function
+ */
 
 /* Tokens associated with requests */
 RIL_Token request_ids[256];
 int rid = 0;
 
-void start_thread();
+void read_loop_thread();
 
 int getRequestId(RIL_Token token)
 {
@@ -42,204 +50,36 @@ RIL_Token getToken(int id)
 	return request_ids[id];
 }
 
-void respondNitz(void *data, int length)
+void RadioTokensCheck(void)
 {
-	struct ipc_misc_time_info *nitz = (struct ipc_misc_time_info*)data;
-	char str[128];
-
-	sprintf(str, "%02u/%02u/%02u,%02u:%02u:%02u+%02d,%02d",
-		nitz->year, nitz->mon, nitz->day, nitz->hour, nitz->min, nitz->sec, nitz->tz, 0);
-
-	RIL_onUnsolicitedResponse(RIL_UNSOL_NITZ_TIME_RECEIVED, str, strlen(str) + 1);
-}
-
-void requestIMEI(RIL_Token t)
-{
-	if(radio.radio_state != RADIO_STATE_OFF) {
-		ipc_client_send_get(IPC_MISC_ME_SN, getRequestId(t));
-	} else {
-		radio.token_imei = t;
-	}
-}
-
-void respondIMEI(RIL_Token t, void *data, int length)
-{
-	struct ipc_misc_me_sn *imei_info;
-	char imei[33];
-	char imeisv[3];
-
-	imei_info = (struct ipc_misc_me_sn*)data;
-
-	if(imei_info->length > 32)
-		return;
-
-	memset(imei, 0, sizeof(imei));
-	memset(imeisv, 0, sizeof(imeisv));
-
-	memcpy(imei, imei_info->imei, imei_info->length);
-
-	/* Last two bytes of IMEI in imei_info are the SV bytes */
-	memcpy(imeisv, (imei_info->imei + imei_info->length - 2), 2);
-
-	/* IMEI */
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, imei, sizeof(char*));
-
-	/* IMEI SV */
-	RIL_onRequestComplete(radio.token_imeisv, RIL_E_SUCCESS, imeisv, sizeof(char*));
-}
-
-void requestIMEISV(RIL_Token t)
-{
-	radio.token_imeisv = t;
-}
-
-void requestOperator(RIL_Token t)
-{
-	ipc_client_send_get(IPC_NET_CURRENT_PLMN, getRequestId(t));
-}
-
-void respondOperator(RIL_Token t, void *data, int length)
-{
-	struct ipc_net_current_plmn *plmndata = (struct ipc_net_current_plmn*)data;
-
-	char plmn[7];
-	memset(plmn, 0, sizeof(plmn));
-	memcpy(plmn, plmndata->plmn, 6);
-
-	if(plmn[5] == '#')
-		plmn[5] = '\0'; //FIXME: remove #?
-
-	char *response[3];
-	asprintf(&response[0], "%s", plmn_lookup(plmn));
-	//asprintf(&response[1], "%s", "Voda NL");
-	response[1] = NULL;
-	response[2] = plmn;
-
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
-
-	free(response[0]);
-	free(response[1]);
-}
-
-void requestRegistrationState(RIL_Token t)
-{
-	char *response[15];
-	memset(response, 0, sizeof(response));
-
-	asprintf(&response[0], "%d", 1); //FIXME: registration state
-	asprintf(&response[1], "%x", radio.netinfo.lac);
-	asprintf(&response[2], "%x", radio.netinfo.cid);
-	asprintf(&response[3], "%d", 1); //FIXME: network technology
-
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
-
-	free(response[0]);
-	free(response[1]);
-	free(response[2]);
-}
-
-void requestNwSelectionMode(RIL_Token t)
-{
-	unsigned int mode = 0;
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, &mode, sizeof(mode));
-}
-
-void requestAvailNetworks(RIL_Token t)
-{
-	ipc_client_send_get(IPC_NET_PLMN_LIST, getRequestId(t));
-}
-
-/* FIXME: cleanup struct names & resp[] addressing */
-void respondAvailNetworks(RIL_Token t, void *data, int length)
-{
-	struct ipc_net_plmn_entries *entries_info = (struct ipc_net_plmn_entries*)data;
-	struct ipc_net_plmn_entry *entries = entries_info->data;
-
-	int i ;
-	int size = (4 * entries_info->num * sizeof(char*));
-	int actual_size = 0;
-
-	char **resp = malloc(size);
-	char **resp_ptr = resp;
-
-	for(i = 0; i < entries_info->num; i++) {
-		/* Assumed type for 'emergency only' PLMNs */
-		if(entries[i].type == 0x01)
-			continue;
-
-		char *plmn = plmn_string(entries[i].plmn);
-
-		/* Long (E)ONS */
-		asprintf(&resp_ptr[0], "%s", plmn_lookup(plmn));
-
-		/* Short (E)ONS - FIXME: real short EONS */
-		asprintf(&resp_ptr[1], "%s", plmn_lookup(plmn));
-
-		/* PLMN */
-		asprintf(&resp_ptr[2], "%s", plmn);
-
-		free(plmn);
-
-		/* PLMN status */
-		switch(entries[i].status) {
-			case IPC_NET_PLMN_STATUS_AVAILABLE:
-				asprintf(&resp_ptr[3], "available");
-				break;
-			case IPC_NET_PLMN_STATUS_CURRENT:
-				asprintf(&resp_ptr[3], "current");
-				break;
-			case IPC_NET_PLMN_STATUS_FORBIDDEN:
-				asprintf(&resp_ptr[3], "forbidden");
-				break;
-			default:
-				asprintf(&resp_ptr[3], "unknown");
-				break;
+	if(radio.tokens.baseband_version != 0) {
+		if(radio.radio_state != RADIO_STATE_OFF) {
+			requestBasebandVersion(radio.tokens.baseband_version);
+			radio.tokens.baseband_version = 0;
 		}
-
-		actual_size++;
-		resp_ptr += 4;
 	}
 
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, resp, (4 * sizeof(char*) * actual_size));
-
-	/* FIXME: free individual strings */
-	free(resp);
-}
-
-void respondSignalStrength(RIL_Token t, void *data, int length)
-{
-	struct ipc_disp_icon_info *signal_info = (struct ipc_disp_icon_info*)data;
-	int rssi;
-
-	RIL_SignalStrength ss;
-	memset(&ss, 0, sizeof(ss));
-
-	/* Multiplying the number of bars by 3 yields
-	 * an asu with an equal number of bars in Android
-	 */
-	ss.GW_SignalStrength.signalStrength = (3 * signal_info->rssi);
-	ss.GW_SignalStrength.bitErrorRate = 99;
-
-	RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &ss, sizeof(ss));
-}
-
-void requestPower(RIL_Token t, void *data, size_t datalen)
-{
-	int *power_state = (int*)data;
-
-	if(*power_state) {
-		start_thread();
-		RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
-	} else {
-		LOGE("%s: power off not implemented", __FUNCTION__);
-		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+	if(radio.tokens.get_imei != 0) {
+		if(radio.radio_state != RADIO_STATE_OFF) {
+			requestIMEI(radio.tokens.get_imei);
+			radio.tokens.get_imei = 0;
+		}
 	}
 }
+
+/*
+ * RILJ (RIL to modem) related functions 
+ */
 
 void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 {
 	//LOGD("%s: start %d %08X", __FUNCTION__, request, t);
-	
+/*
+	if(radio.tokens.radio_power != 0) {
+		RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
+		return;
+	}
+*/
 	switch(request) {
 		case RIL_REQUEST_RADIO_POWER:
 			requestPower(t, data, datalen);
@@ -295,10 +135,10 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 			requestSendSms(t, data, datalen);
 			break;
 		case RIL_REQUEST_SEND_SMS_EXPECT_MORE:
-			requestSendSms(t, data, datalen);
+			requestSendSmsExpectMore(t, data, datalen);
 			break;
 		case RIL_REQUEST_SMS_ACKNOWLEDGE:
-			requestSmsAcknowledge(t);
+			requestSmsAcknowledge(t, data, datalen);
 			break;
 		case RIL_REQUEST_GET_SIM_STATUS:
 			requestSimStatus(t);
@@ -324,6 +164,11 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM:
 			RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 			break;
+		case RIL_REQUEST_SCREEN_STATE:
+			/* This doesn't affect anything */
+			RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+			break;
+
 		default:
 			LOGE("Request not implemented: %d\n", request);
 			RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
@@ -354,23 +199,6 @@ const char *getVersion(void)
 	return RIL_VERSION_STRING;
 }
 
-void respondPowerup()
-{
-	/* Update radio state */
-	radio.radio_state = RADIO_STATE_SIM_NOT_READY;
-	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED, NULL, 0);
-
-	/* Send pending IMEI and baseband version requests */
-	if(radio.token_imei) {
-		ipc_client_send_get(IPC_MISC_ME_SN, getRequestId(radio.token_imei));
-		radio.token_imei = 0;
-	}
-
-	if(radio.token_baseband_ver) {
-		ipc_client_send_get(IPC_MISC_ME_VERSION, getRequestId(radio.token_baseband_ver));
-	}
-}
-
 void respondGenPhonRes(struct ipc_message_info *info)
 {
 	struct ipc_gen_phone_res *gen_res = (struct ipc_gen_phone_res*)info->data;
@@ -383,16 +211,23 @@ void respondGenPhonRes(struct ipc_message_info *info)
 	}
 }
 
+/**
+ * libsamsung-ipc (modem to RIL) related functions
+ */
+
 void onReceive(struct ipc_message_info *info)
 {
 	/* FIXME: This _needs_ to be moved to each individual function. Unsollicited calls do not have a token! */
 	RIL_Token t = getToken(info->aseq);
 
+	// TODO: add IPC_NET_SERVING_NETWORK
+
 	switch(IPC_COMMAND(info)) {
 		case IPC_PWR_PHONE_PWR_UP:
-			/* H1 baseband firmware bug workaround: sleep for 25ms to allow for nvram to initialize */
-			usleep(25000);
-			respondPowerup();
+			respondPowerUp();
+			break;
+		case IPC_PWR_PHONE_STATE:
+			respondPowerPhoneState(info);
 			break;
 		case IPC_MISC_ME_VERSION:
 			respondBasebandVersion(info);
@@ -401,13 +236,13 @@ void onReceive(struct ipc_message_info *info)
 			respondIMSI(info);
 			break;
 		case IPC_MISC_ME_SN:
-			respondIMEI(t, info->data, info->length);
+			respondMeSn(t, info->data, info->length);
 			break;
 		case IPC_MISC_TIME_INFO:
 			respondNitz(info->data, info->length);
 			break;
 		case IPC_NET_CURRENT_PLMN:
-			respondOperator(t, info->data, info->length);
+			respondOperator(info);
 			break;
 		case IPC_NET_PLMN_LIST:
 			respondAvailNetworks(t, info->data, info->length);
@@ -419,6 +254,9 @@ void onReceive(struct ipc_message_info *info)
 			respondModeSel(info);
 			break;
 		case IPC_DISP_ICON_INFO:
+			respondIconSignalStrength(t, info->data, info->length);
+			break;
+		case IPC_DISP_RSSI_INFO:
 			respondSignalStrength(t, info->data, info->length);
 			break;
 		case IPC_CALL_INCOMING:
@@ -432,6 +270,15 @@ void onReceive(struct ipc_message_info *info)
 			break;
 		case IPC_SMS_INCOMING_MSG:
 			respondSmsIncoming(t, info->data, info->length);
+			break;
+		case IPC_SMS_DELIVER_REPORT:
+			respondSmsDeliverReport(t, info->data, info->length);
+			break;
+		case IPC_SMS_SVC_CENTER_ADDR:
+			respondSmsSvcCenterAddr(t, info->data, info->length);
+			break;
+		case IPC_SMS_SEND_MSG:
+			respondSmsSendMsg(t, info->data, info->length);
 			break;
 		case IPC_SEC_PIN_STATUS:
 			respondSimStatusChanged(t, info->data, info->length);
@@ -454,6 +301,9 @@ void onReceive(struct ipc_message_info *info)
 		case IPC_GEN_PHONE_RES:
 			respondGenPhonRes(info);
 			break;
+		case IPC_SMS_DEVICE_READY:
+			respondSmsDeviceReady(t, info);
+			break;
 		default:
 			//LOGD("Unknown msgtype: %04x", info->type);
 			break;
@@ -465,51 +315,68 @@ void ipc_log_handler(const char *message, void *user_data)
 	LOGD("ipc: %s", message);
 }
 
-void *init_loop()
+/**
+ * read_loop():
+ * This function is the main IPC read loop
+ */
+void *read_loop()
 {
 	struct ipc_message_info resp;
+	fd_set fds;
 
-	ipc_client = ipc_client_new(IPC_CLIENT_TYPE_FMT);
-
-	ipc_client_set_log_handler(ipc_client, ipc_log_handler, NULL);
-
-	ipc_client_bootstrap_modem(ipc_client);
-
-	if(ipc_client_open(ipc_client)) {
-		LOGE("%s: failed to open ipc client", __FUNCTION__);
-		return 0;
-	}
-
-	if(ipc_client_power_on(ipc_client)) {
-		LOGE("%s: failed to power on ipc client", __FUNCTION__);
-		return 0;
-	}
+	FD_ZERO(&fds);
+	FD_SET(client_fmt_fd, &fds);
 
 	while(1) {
-		ipc_client_recv(ipc_client, &resp);
+		usleep(3000);
 
-		onReceive(&resp);
+		select(client_fmt_fd + 1, &fds, NULL, NULL, NULL);
 
-		if(resp.data != NULL)
-			free(resp.data);
+		if(FD_ISSET(client_fmt_fd, &fds)) {
+			if(ipc_client_recv(ipc_client, &resp)) {
+				LOGE("IPC RECV failure!!!");
+				break;
+			}
+			LOGD("RECV aseq=0x%x mseq=0x%x data_length=%d\n", resp.aseq, resp.mseq, resp.length);
+
+			onReceive(&resp);
+
+			if(resp.data != NULL)
+				free(resp.data);
+		}
 	}
 
 	ipc_client_power_off(ipc_client);
 	ipc_client_close(ipc_client);
-
 	ipc_client_free(ipc_client);
 
 	return 0;
 }
 
-void start_thread()
+void radio_init_tokens(void)
+{
+	memset(&(radio.tokens), 0, sizeof(struct ril_tokens));
+}
+
+void radio_init_lpm(void)
+{
+	memset(&radio, 0, sizeof(radio));
+	radio.radio_state = RADIO_STATE_OFF;
+	radio.power_mode = POWER_MODE_LPM;
+}
+
+void read_loop_thread()
 {
 	pthread_t thread;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-	pthread_create(&thread, &attr, init_loop, NULL);
+	pthread_create(&thread, &attr, read_loop, NULL);
 }
+
+/**
+ * RIL_Init function
+ */
 
 static const RIL_RadioFunctions radio_ops = {
 	RIL_VERSION,
@@ -522,12 +389,39 @@ static const RIL_RadioFunctions radio_ops = {
 
 const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **argv)
 {
-	memset(&radio, 0, sizeof(radio));
-	radio.radio_state = RADIO_STATE_OFF;
-	radio.token_ps = 0;
-	radio.token_cs = 0;
+	radio_init_lpm();
+	radio_init_tokens();
 
 	rilenv = env;
+
+	LOGD("Creating new FMT client");
+	ipc_client = ipc_client_new(IPC_CLIENT_TYPE_FMT);
+
+	ipc_client_set_log_handler(ipc_client, ipc_log_handler, NULL);
+
+	ipc_client_bootstrap_modem(ipc_client);
+
+	LOGD("All handlers data is %p", &client_fmt_fd);
+	ipc_client_set_all_handlers_data(ipc_client, &client_fmt_fd);
+
+	LOGD("Client open...");
+	if(ipc_client_open(ipc_client)) {
+		LOGE("%s: failed to open ipc client", __FUNCTION__);
+		return 0;
+	}
+
+	if(client_fmt_fd < 0) {
+		LOGE("%s: client_fmt_fd is negative, aborting", __FUNCTION__);
+		return 0;
+	}
+
+	LOGD("Client power on...");
+	if(ipc_client_power_on(ipc_client)) {
+		LOGE("%s: failed to power on ipc client", __FUNCTION__);
+		return 0;
+	}
+
+	read_loop_thread();
 
 	return &radio_ops;
 }
