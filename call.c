@@ -7,6 +7,27 @@ extern const struct RIL_Env *rilenv;
 extern struct radio_state radio;
 extern struct ipc_client *ipc_client;
 
+unsigned char call_list_entry_state_ipc2ril(unsigned char call_state)
+{
+	switch(call_state) {
+		case IPC_CALL_LIST_ENTRY_STATE_ACTIVE:
+			return RIL_CALL_ACTIVE;
+		case IPC_CALL_LIST_ENTRY_STATE_HOLDING:
+			return RIL_CALL_HOLDING;
+		case IPC_CALL_LIST_ENTRY_STATE_DIALING:
+			return RIL_CALL_DIALING;
+		case IPC_CALL_LIST_ENTRY_STATE_ALERTING:
+			return RIL_CALL_ALERTING;
+		case IPC_CALL_LIST_ENTRY_STATE_INCOMING:
+			return RIL_CALL_INCOMING;
+		case IPC_CALL_LIST_ENTRY_STATE_WAITING:
+			return RIL_CALL_WAITING;
+		default:
+			LOGE("Unknown IPC_CALL_LIST_ENTRY_STATE!");
+			return -1;
+	}
+}
+
 /**
  * In: RIL_REQUEST_GET_CURRENT_CALLS
  *   Requests current call list
@@ -48,7 +69,7 @@ void respondCallList(RIL_Token t, void *data, int length)
 		memset(number_ril, 0, (entry->number_len + 1));
 		memcpy(number_ril, number, entry->number_len);
 
-		call->state = (entry->state-1); /* FIXME: mapping func */
+		call->state = call_list_entry_state_ipc2ril(entry->state);
 		call->index = (entry->idx+1);
 		call->toa = (entry->number_len > 0 && number[0] == '+') ? 145 : 129;
 		call->isMpty = entry->mpty;

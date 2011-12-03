@@ -124,8 +124,8 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 			requestGetCurrentCalls(t);
 			break;
 		case RIL_REQUEST_HANGUP:
-		//case RIL_REQUEST_HANGUP_WAITING_OR_BACKGROUND: /* FIXME: We actually don't support background calls */
-		//case RIL_REQUEST_HANGUP_FOREGROUND_RESUME_BACKGROUND:  /* FIXME: We actually don't support background calls */
+		case RIL_REQUEST_HANGUP_WAITING_OR_BACKGROUND:
+		case RIL_REQUEST_HANGUP_FOREGROUND_RESUME_BACKGROUND:
 			requestHangup(t);
 			break;
 		case RIL_REQUEST_ANSWER:
