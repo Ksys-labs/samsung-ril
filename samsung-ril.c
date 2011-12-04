@@ -2,12 +2,14 @@
 
 #include <telephony/ril.h>
 
+#include <samsung-ril-socket.h>
 #include <radio.h>
 #include <util.h>
 
 #define LOG_TAG "RIL"
 #include <utils/Log.h>
 
+#include "socket.h"
 #include "samsung-ril.h"
 #include "util.h"
 
@@ -17,6 +19,7 @@ const struct RIL_Env *rilenv;
 struct radio_state radio;
 
 struct ipc_client *ipc_client;
+struct srs_server *srs_server;
 int client_fmt_fd = -1;
 
 /*
@@ -315,9 +318,93 @@ void ipc_log_handler(const char *message, void *user_data)
 	LOGD("ipc: %s", message);
 }
 
+void socketRespondGetHelo(struct srs_message *message)
+{
+	int helo = SRS_CONTROL_HELO;
+	srs_server_send(srs_server, SRS_CONTROL_GET_HELO, &helo, sizeof(helo), message->msg_id);
+}
+
+void socketRespondLinkClose(struct srs_message *message)
+{
+	close(srs_server->client_fd);
+	srs_server->client_fd = -1;
+}
+
+void socketRespondSetCallClockSync(struct srs_message *message)
+{
+	unsigned char data = *((unsigned char *) message->data);
+	LOGE("SetCallClockSync data is 0x%x\n", data);
+
+	ipc_client_send(ipc_client, IPC_SND_CLOCK_CTRL, IPC_TYPE_EXEC, &data, sizeof(data), 0xff);
+}
+
+void onSocketReceive(struct srs_message *message)
+{
+	switch(message->command) {
+		case SRS_CONTROL_GET_HELO:
+			socketRespondGetHelo(message);
+			break;
+		case SRS_CONTROL_LINK_CLOSE:
+			socketRespondLinkClose(message);
+			break;
+		case SRS_SND_SET_CALL_CLOCK_SYNC:
+			socketRespondSetCallClockSync(message);
+			break;
+	}
+}
+
+void *socket_loop()
+{
+	struct srs_message srs_message;
+	fd_set fds;
+	int rc;
+
+	while(1) {
+		rc = srs_server_accept(srs_server);
+
+		LOGE("SRS server accept!");
+
+		FD_ZERO(&fds);
+		FD_SET(srs_server->client_fd, &fds);
+
+		while(1) {
+			usleep(300);
+
+			if(srs_server->client_fd < 0)
+				break;
+
+			select(FD_SETSIZE, &fds, NULL, NULL, NULL);
+
+			if(FD_ISSET(srs_server->client_fd, &fds)) {
+				if(srs_server_recv(srs_server, &srs_message) < 0) {
+					LOGE("SRS server RECV failure!!!");
+					break;
+				}
+
+				LOGE("SRS OBTAINED DATA DUMP == %d == %d ======", srs_message.command, srs_message.data_len);
+				ipc_hex_dump(ipc_client, srs_message.data, srs_message.data_len);
+
+				onSocketReceive(&srs_message);
+
+				if(srs_message.data != NULL) //check on datalen
+					free(srs_message.data);
+			}
+		}
+
+		if(srs_server->client_fd > 0) {
+			close(srs_server->client_fd);
+			srs_server->client_fd = -1;
+		}
+
+		LOGE("SRS server client ended!");
+	}
+
+	return 0;
+}
+
 /**
  * read_loop():
- * This function is the main IPC read loop
+ * This function is the main RIL read loop
  */
 void *read_loop()
 {
@@ -328,9 +415,9 @@ void *read_loop()
 	FD_SET(client_fmt_fd, &fds);
 
 	while(1) {
-		usleep(3000);
+		usleep(300);
 
-		select(client_fmt_fd + 1, &fds, NULL, NULL, NULL);
+		select(FD_SETSIZE, &fds, NULL, NULL, NULL);
 
 		if(FD_ISSET(client_fmt_fd, &fds)) {
 			if(ipc_client_recv(ipc_client, &resp)) {
@@ -363,6 +450,15 @@ void radio_init_lpm(void)
 	memset(&radio, 0, sizeof(radio));
 	radio.radio_state = RADIO_STATE_OFF;
 	radio.power_mode = POWER_MODE_LPM;
+}
+
+void socket_loop_thread()
+{
+	pthread_t thread;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	pthread_create(&thread, &attr, socket_loop, NULL);
 }
 
 void read_loop_thread()
@@ -421,7 +517,14 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
 		return 0;
 	}
 
+	srs_server = srs_server_new();
+	if(srs_server_open(srs_server) < 0) {
+		LOGE("%s: samsung-ril-socket server open failed", __FUNCTION__);
+		return 0;
+	}
+
 	read_loop_thread();
+	socket_loop_thread();
 
 	return &radio_ops;
 }

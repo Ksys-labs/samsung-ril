@@ -13,7 +13,9 @@ LOCAL_SRC_FILES := \
     sms.c \
     util.c \
     pwr.c \
-    disp.c
+    disp.c \
+    socket.c
+
 LOCAL_SHARED_LIBRARIES := \
     libcutils libutils libril
 
@@ -31,6 +33,7 @@ endif
 
 LOCAL_C_INCLUDES := external/libsamsung-ipc/include
 LOCAL_C_INCLUDES += hardware/ril/libsamsung-ipc/include
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/include
 
 LOCAL_MODULE_TAGS := optional
 
