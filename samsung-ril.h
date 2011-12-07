@@ -79,6 +79,8 @@ void requestDial(RIL_Token t, void *data, size_t datalen);
 void respondCallIncoming(RIL_Token t, void *data, int length);
 void respondCallStatus(RIL_Token t, void *data, int length);
 void respondCallList(RIL_Token t, void *data, int length);
+void requestDtmfStart(RIL_Token t, void *data, int length);
+void requestDtmfStop(RIL_Token t);
 
 /* Misc */
 void requestBasebandVersion(RIL_Token t);

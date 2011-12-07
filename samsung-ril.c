@@ -134,6 +134,12 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_ANSWER:
 			requestAnswer(t);
 			break;
+               case RIL_REQUEST_DTMF_START:
+                       requestDtmfStart(t, data, datalen);
+                       break;
+               case RIL_REQUEST_DTMF_STOP:
+                       requestDtmfStop(t);
+                       break;
 		case RIL_REQUEST_SEND_SMS:
 			requestSendSms(t, data, datalen);
 			break;

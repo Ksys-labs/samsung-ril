@@ -203,3 +203,27 @@ void respondCallStatus(RIL_Token t, void *data, int length)
 {
 	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0);
 }
+
+void requestDtmfStart(RIL_Token t, void *data, int length)
+{
+	//TODO: Check if there is already a DTMF going on and cancel it if so
+
+	struct ipc_call_cont_dtmf cont_dtmf;
+	cont_dtmf.state = IPC_CALL_DTMF_STATE_START;
+	cont_dtmf.tone = ((char *)data)[0];
+
+	ipc_client_send(ipc_client, IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (unsigned char*)&cont_dtmf, sizeof(cont_dtmf), getRequestId(t));
+
+	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+}
+
+void requestDtmfStop(RIL_Token t)
+{
+	struct ipc_call_cont_dtmf cont_dtmf;
+	cont_dtmf.state = IPC_CALL_DTMF_STATE_STOP;
+	cont_dtmf.tone = 0;
+
+	ipc_client_send(ipc_client, IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (unsigned char*)&cont_dtmf, sizeof(cont_dtmf), getRequestId(t));
+
+	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+}
