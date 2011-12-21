@@ -2,6 +2,7 @@
  * This file is part of samsung-ril.
  *
  * Copyright (C) 2010-2011 Joerie de Gram <j.de.gram@gmail.com>
+ * Copyright (C) 2011 Paul Kocialkowski <contact@oaulk.fr>
  *
  * samsung-ril is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,11 +19,16 @@
  *
  */
 
-#ifndef _SAMSUNG_RIL_UTIL_H_
-#define _SAMSUNG_RIL_UTIL_H_
+#define LOG_TAG "RIL-SND"
+#include <utils/Log.h>
 
-void bin2hex(const unsigned char *data, int length, char *buf);
-void hex2bin(const char *data, int length, unsigned char *buf);
-void hex_dump(void *data, int size);
+#include "samsung-ril.h"
+#include "util.h"
 
-#endif
+void srs_snd_set_call_clock_sync(struct srs_message *message)
+{
+	unsigned char data = *((unsigned char *) message->data);
+	LOGE("SetCallClockSync data is 0x%x\n", data);
+
+	ipc_fmt_send(IPC_SND_CLOCK_CTRL, IPC_TYPE_EXEC, &data, sizeof(data), reqIdNew());
+}

@@ -1,19 +1,148 @@
+/**
+ * This file is part of samsung-ril.
+ *
+ * Copyright (C) 2010-2011 Joerie de Gram <j.de.gram@gmail.com>
+ * Copyright (C) 2011 Paul Kocialkowski <contact@oaulk.fr>
+ *
+ * samsung-ril is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * samsung-ril is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with samsung-ril.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#ifndef _SAMSUNG_RIL_H_
+#define _SAMSUNG_RIL_H_
+
+#include <pthread.h>
+
 #include <telephony/ril.h>
 #include <radio.h>
 
-#define RIL_onRequestComplete(t, e, response, responselen) rilenv->OnRequestComplete(t,e, response, responselen)
-#define RIL_onUnsolicitedResponse(a,b,c) rilenv->OnUnsolicitedResponse(a,b,c)
-#define RIL_requestTimedCallback(a,b,c) rilenv->RequestTimedCallback(a,b,c)
+#include "ipc.h"
+#include "srs.h"
 
-#define ipc_client_send_get(type, request) \
-	ipc_client_send(ipc_client, type, IPC_TYPE_GET, NULL, 0, request)
+/**
+ * Defines
+ */
 
-#define ipc_client_send_set(type, request, data, len) \
-	ipc_client_send(ipc_client, type, IPC_TYPE_SET, data, len, request)
+#define RIL_onRequestComplete(t, e, response, responselen) ril_env->OnRequestComplete(t,e, response, responselen)
+#define RIL_onRequestCompleteIfValid(t, e, response, responselen) \
+	if((ril_request_is_valid(t)) \
+		RIL_onRequestComplete(t, e, response, responselen)
+#define RIL_onUnsolicitedResponse(a,b,c) ril_env->OnUnsolicitedResponse(a,b,c)
+#define RIL_requestTimedCallback(a,b,c) ril_env->RequestTimedCallback(a,b,c)
 
-#define ipc_client_send_exec(type, request) \
-	ipc_client_send(ipc_client, type, IPC_TYPE_EXEC, NULL, 0, request)
+#define reqIdNew() ril_request_id_new()
+#define reqGetId(t) ril_request_get_id(t)
+#define reqGetToken(i) ril_request_get_token(i)
 
+/**
+ * RIL structures
+ */
+
+struct ril_client;
+struct ril_token;
+struct ril_tokens;
+struct ril_state;
+
+/**
+ * RIL globals
+ */
+
+extern struct ril_client *ipc_fmt_client;
+extern struct ril_client *ipc_rfs_client;
+extern struct ril_client *srs_client;
+
+extern const struct RIL_Env *ril_env;
+extern struct ril_state ril_state;
+
+/**
+ * RIL client
+ */
+
+typedef int (*ril_client_func)(struct ril_client *client);
+
+typedef enum {
+	RIL_CLIENT_NULL		= 0,
+	RIL_CLIENT_CREATED	= 1,
+	RIL_CLIENT_READY	= 2,
+	RIL_CLIENT_DESTROYED	= 3,
+	RIL_CLIENT_ERROR	= 4,
+
+} ril_client_state;
+
+struct ril_client {
+	ril_client_func create;
+	ril_client_func destroy;
+	ril_client_func read_loop;
+
+	void *object;
+
+	pthread_t thread;
+	pthread_mutex_t mutex;
+
+	ril_client_state state;
+};
+
+struct ril_client_funcs {
+	ril_client_func create;
+	ril_client_func destroy;
+	ril_client_func read_loop;
+};
+
+struct ril_client *ril_client_new(struct ril_client_funcs *client_funcs);
+int ril_client_free(struct ril_client *client);
+int ril_client_create(struct ril_client *client);
+int ril_client_destroy(struct ril_client *client);
+int ril_client_thread_start(struct ril_client *client);
+
+/**
+ * RIL request token
+ */
+
+struct ril_request_token {
+	RIL_Token token;
+	int canceled;
+};
+
+int ril_request_id_new(void);
+int ril_request_get_id(RIL_Token token);
+RIL_Token ril_request_get_token(int id);
+int ril_request_is_valid(RIL_Token token);
+
+/**
+ * RIL tokens
+ */
+
+// FIXME: Move RIL_Token token_ps, token_cs; here
+struct ril_tokens {
+	RIL_Token radio_power;
+	RIL_Token get_imei;
+	RIL_Token get_imeisv;
+	RIL_Token baseband_version;
+
+	RIL_Token registration_state;
+	RIL_Token gprs_registration_state;
+	RIL_Token operator;
+
+	RIL_Token send_sms;
+};
+
+void ril_tokens_check(void);
+
+/**
+ * RIL state
+ */
+ 
 typedef enum {
 	SIM_ABSENT			= 0,
 	SIM_NOT_READY			= 1,
@@ -33,22 +162,7 @@ typedef enum {
 	POWER_MODE_SIM_INIT_COMPLETE	= 4,
 } Modem_PowerMode;
 
-// Move RIL_Token token_ps, token_cs; here
-struct ril_tokens {
-	RIL_Token radio_power;
-	RIL_Token get_imei;
-	RIL_Token get_imeisv;
-	RIL_Token baseband_version;
-
-	RIL_Token registration_state;
-	RIL_Token gprs_registration_state;
-	RIL_Token operator;
-
-	RIL_Token send_sms;
-};
-
-
-struct radio_state {
+struct ril_state {
 	RIL_RadioState radio_state;
 	RIL_CardState card_state;
 	SIM_Status sim_status;
@@ -64,46 +178,34 @@ struct radio_state {
 	char *msg_pdu;
 };
 
-void RadioTokensCheck(void);
-int getRequestId(RIL_Token token);
-RIL_Token getToken(int id);
+void ril_state_lpm(void);
+int ril_modem_check(void);
 
-void radio_init_lpm(void);
+/**
+ * Clients dispatch functions
+ */
 
-/* Call */
-void requestCallList(RIL_Token t);
-void requestGetCurrentCalls(RIL_Token t);
-void requestHangup(RIL_Token t);
-void requestAnswer(RIL_Token t);
-void requestDial(RIL_Token t, void *data, size_t datalen);
-void respondCallIncoming(RIL_Token t, void *data, int length);
-void respondCallStatus(RIL_Token t, void *data, int length);
-void respondCallList(RIL_Token t, void *data, int length);
-void requestDtmfStart(RIL_Token t, void *data, int length);
-void requestDtmfStop(RIL_Token t);
+void ipc_dispatch(struct ipc_message_info *info);
 
-/* Misc */
-void requestBasebandVersion(RIL_Token t);
-void respondBasebandVersion(struct ipc_message_info *request);
 
-/* Net */
-void requestGPRSRegistrationState(RIL_Token t);
-void respondNetRegist(struct ipc_message_info *request);
-void requestGetPreferredNetworkType(RIL_Token t);
-void respondModeSel(struct ipc_message_info *request);
-void requestSetPreferredNetworkType(RIL_Token t, void *data, size_t datalen);
+/* PWR */
+void ipc_pwr_phone_pwr_up(void);
+void ipc_pwr_phone_state(struct ipc_message_info *info);
+void ril_request_radio_power(RIL_Token t, void *data, size_t datalen);
 
-/* SIM */
-void respondSimStatusChanged(RIL_Token t, void *data, int length);
-void requestSimStatus(RIL_Token t);
-void requestSimIo(RIL_Token t, void *data, size_t datalen);
-void respondSecRsimAccess(RIL_Token t, void *data, int length);
-void requestEnterSimPin(RIL_Token t, void *data, size_t datalen);
-void respondSecPinStatus(struct ipc_message_info *request);
-void respondLockInfo(struct ipc_message_info *request);
-void requestQueryFacilityLock(RIL_Token t, void *data, size_t datalen);
-void respondSecPhoneLock(struct ipc_message_info *request);
-void requestSetFacilityLock(RIL_Token t, void *data, size_t datalen);
+/* DISP */
+void ipc_disp_icon_info(struct ipc_message_info *info);
+void ipc_disp_rssi_info(struct ipc_message_info *info);
+
+/* MISC */
+void ril_request_get_imei(RIL_Token t);
+void ril_request_get_imeisv(RIL_Token t);
+void ipc_misc_me_sn(struct ipc_message_info *info);
+void ril_request_baseband_version(RIL_Token t);
+void ipc_misc_me_version(struct ipc_message_info *info);
+void ril_request_get_imsi(RIL_Token t);
+void ipc_misc_me_imsi(struct ipc_message_info *info);
+void ipc_misc_time_info(struct ipc_message_info *info);
 
 /* SAT */
 void respondSatProactiveCmd(struct ipc_message_info *request);
@@ -111,22 +213,54 @@ void requestSatSendTerminalResponse(RIL_Token t, void *data, size_t datalen);
 void requestSatSendEnvelopeCommand(RIL_Token t, void *data, size_t datalen);
 void respondSatEnvelopeCmd(struct ipc_message_info *request);
 
+/* SIM */
+void ipc_sec_pin_status(struct ipc_message_info *info);
+void ril_request_sim_status(RIL_Token t);
+void ril_request_sim_io(RIL_Token t, void *data, size_t datalen);
+void ipc_sec_rsim_access(struct ipc_message_info *info);
+void ril_request_enter_sim_pin(RIL_Token t, void *data, size_t datalen);
+void ipc_sec_pin_status_res(struct ipc_message_info *info);
+void ipc_sec_lock_info(struct ipc_message_info *info);
+void ril_request_query_facility_lock(RIL_Token t, void *data, size_t datalen);
+void ipc_sec_phone_lock(struct ipc_message_info *info);
+void ril_request_set_facility_lock(RIL_Token t, void *data, size_t datalen);
+
+/* NET */
+void ril_request_operator(RIL_Token t);
+void ipc_net_current_plmn(struct ipc_message_info *message);
+void ril_request_registration_state(RIL_Token t);
+void ril_request_gprs_registration_state(RIL_Token t);
+void ipc_net_regist(struct ipc_message_info *message);
+void ril_request_query_available_networks(RIL_Token t);
+void ipc_net_plmn_list(struct ipc_message_info *info);
+void ril_request_query_network_selection_mode(RIL_Token t);
+void ril_request_get_preferred_network_type(RIL_Token t);
+void ril_request_set_preffered_network_type(RIL_Token t, void *data, size_t datalen);
+void ipc_net_mode_sel(struct ipc_message_info *info);
+
 /* SMS */
-void respondSmsIncoming(RIL_Token t, void *data, int length);
-void requestSendSmsEx(RIL_Token t, void *data, size_t datalen, unsigned char hint);
-void requestSendSms(RIL_Token t, void *data, size_t datalen);
-void requestSendSmsExpectMore(RIL_Token t, void *data, size_t datalen);
-void requestSmsAcknowledge(RIL_Token t, void *data, size_t datalen);
-void respondSmsDeviceReady(RIL_Token t, struct ipc_message_info *info);
+void ipc_sms_incoming_msg(struct ipc_message_info *info);
+void ril_request_sms_acknowledge(RIL_Token t, void *data, size_t datalen);
+void ipc_sms_deliver_report(struct ipc_message_info *info);
+void ril_request_send_sms(RIL_Token t, void *data, size_t datalen);
+void ril_request_send_sms_expect_more(RIL_Token t, void *data, size_t datalen);
+void ipc_sms_svc_center_addr(struct ipc_message_info *info);
+void ipc_sms_send_msg(struct ipc_message_info *info);
+void ipc_sms_device_ready(struct ipc_message_info *info);
 
-void requestIMSI(RIL_Token t);
-void respondIMSI(struct ipc_message_info *request);
+/* Call */
+void ipc_call_incoming(struct ipc_message_info *info);
+void ipc_call_status(struct ipc_message_info *info);
+void ril_request_dial(RIL_Token t, void *data, size_t datalen);
+void ril_request_get_current_calls(RIL_Token t);
+void ipc_call_list(struct ipc_message_info *info);
+void ril_request_hangup(RIL_Token t);
+void ril_request_answer(RIL_Token t);
+void ril_request_dtmf_start(RIL_Token t, void *data, int length);
+void ril_request_dtmf_stop(RIL_Token t);
 
-/* PWR */
-void respondPowerUp(void);
-void respondPowerPhoneState(struct ipc_message_info *info);
-void requestPower(RIL_Token t, void *data, size_t datalen);
+/* SND */
 
-/* DISP */
-void respondIconSignalStrength(RIL_Token t, void *data, int length);
-void respondSignalStrength(RIL_Token t, void *data, int length);
+void srs_snd_set_call_clock_sync(struct srs_message *message);
+
+#endif

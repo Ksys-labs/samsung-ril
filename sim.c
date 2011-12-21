@@ -1,12 +1,29 @@
+/**
+ * This file is part of samsung-ril.
+ *
+ * Copyright (C) 2010-2011 Joerie de Gram <j.de.gram@gmail.com>
+ * Copyright (C) 2011 Paul Kocialkowski <contact@oaulk.fr>
+ *
+ * samsung-ril is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * samsung-ril is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with samsung-ril.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #define LOG_TAG "RIL-SIM"
 #include <utils/Log.h>
 
 #include "samsung-ril.h"
 #include "util.h"
-
-extern const struct RIL_Env *rilenv;
-extern struct radio_state radio;
-extern struct ipc_client *ipc_client;
 
 /**
  * Update the radio state based on SIM status
@@ -15,18 +32,18 @@ extern struct ipc_client *ipc_client;
  *   Indicate when value of RIL_RadioState has changed
  *   Callee will invoke RIL_RadioStateRequest method on main thread
  */
-void updateRadioState(SIM_Status status)
+void ril_state_update(SIM_Status status)
 {
 	/* If power mode isn't at least normal, don't update RIL state */
-	if(radio.power_mode < POWER_MODE_NORMAL)
+	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
 
 	switch(status) {
 		case SIM_READY:
-			radio.radio_state = RADIO_STATE_SIM_READY;
+			ril_state.radio_state = RADIO_STATE_SIM_READY;
 			break;
 		case SIM_NOT_READY:
-			radio.radio_state = RADIO_STATE_SIM_NOT_READY;
+			ril_state.radio_state = RADIO_STATE_SIM_NOT_READY;
 			break;
 		case SIM_ABSENT:
 		case SIM_PIN:
@@ -36,14 +53,14 @@ void updateRadioState(SIM_Status status)
 		case SIM_NETWORK_SUBSET_PERSO:
 		case SIM_CORPORATE_PERSO:
 		case SIM_SERVICE_PROVIDER_PERSO:
-			radio.radio_state = RADIO_STATE_SIM_LOCKED_OR_ABSENT;
+			ril_state.radio_state = RADIO_STATE_SIM_LOCKED_OR_ABSENT;
 			break;
 		default:
-			radio.radio_state = RADIO_STATE_SIM_NOT_READY;
+			ril_state.radio_state = RADIO_STATE_SIM_NOT_READY;
 			break;
 	}
 
-	RadioTokensCheck();
+	ril_tokens_check();
 	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED, NULL, 0);
 }
 
@@ -59,59 +76,59 @@ void updateRadioState(SIM_Status status)
  *   Indicate when value of RIL_RadioState has changed
  *   Callee will invoke RIL_RadioStateRequest method on main thread
  */
-void respondSimStatusChanged(RIL_Token t, void *data, int length)
+void ipc_sec_pin_status(struct ipc_message_info *info)
 {
-	struct ipc_sec_pin_status_noti *pin_status = (struct ipc_sec_pin_status_noti*)data;
+	struct ipc_sec_pin_status_noti *pin_status = (struct ipc_sec_pin_status_noti *) info->data;
 
 	/* Don't consider this if modem isn't in normal power mode. */
-	if(radio.power_mode < POWER_MODE_NORMAL)
+	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
 
-	if(radio.power_mode == POWER_MODE_NORMAL && radio.tokens.radio_power != 0) {
-		RIL_onRequestComplete(radio.tokens.radio_power, RIL_E_SUCCESS, NULL, 0);
-		radio.tokens.radio_power = 0;
+	if(ril_state.power_mode == POWER_MODE_NORMAL && ril_state.tokens.radio_power != 0) {
+		RIL_onRequestComplete(ril_state.tokens.radio_power, RIL_E_SUCCESS, NULL, 0);
+		ril_state.tokens.radio_power = 0;
 	}
 
 	/* Determine SIM status */
 	switch(pin_status->type) {
 		case IPC_SEC_PIN_SIM_INITIALIZING:
-			radio.sim_status = SIM_NOT_READY;
+			ril_state.sim_status = SIM_NOT_READY;
 			break;
 		case IPC_SEC_PIN_SIM_LOCK_SC:
 			switch(pin_status->key) {
 				case IPC_SEC_PIN_SIM_LOCK_SC_PIN1_REQ:
-					radio.sim_status = SIM_PIN;
+					ril_state.sim_status = SIM_PIN;
 					break;
 				case IPC_SEC_PIN_SIM_LOCK_SC_PUK_REQ:
-					radio.sim_status = SIM_PUK;
+					ril_state.sim_status = SIM_PUK;
 					break;
 				case IPC_SEC_PIN_SIM_LOCK_SC_CARD_BLOCKED:
-					radio.sim_status = SIM_BLOCKED;
+					ril_state.sim_status = SIM_BLOCKED;
 					break;
 				default:
-					radio.sim_status = SIM_ABSENT;
+					ril_state.sim_status = SIM_ABSENT;
 					LOGE("%s: unknown SC substate %d --> setting SIM_ABSENT", __FUNCTION__, pin_status->key);
 					break;
 			}
 			break;
 		case IPC_SEC_PIN_SIM_LOCK_FD:
-			radio.sim_status = SIM_ABSENT;
+			ril_state.sim_status = SIM_ABSENT;
 			LOGE("%s: FD lock present (unhandled state --> setting SIM_ABSENT)", __FUNCTION__);
 			break;
 		case IPC_SEC_PIN_SIM_LOCK_PN:
-			radio.sim_status = SIM_NETWORK_PERSO;
+			ril_state.sim_status = SIM_NETWORK_PERSO;
 			break;
 		case IPC_SEC_PIN_SIM_LOCK_PU:
-			radio.sim_status = SIM_NETWORK_SUBSET_PERSO;
+			ril_state.sim_status = SIM_NETWORK_SUBSET_PERSO;
 			break;
 		case IPC_SEC_PIN_SIM_LOCK_PP:
-			radio.sim_status = SIM_SERVICE_PROVIDER_PERSO;
+			ril_state.sim_status = SIM_SERVICE_PROVIDER_PERSO;
 			break;
 		case IPC_SEC_PIN_SIM_LOCK_PC:
-			radio.sim_status = SIM_CORPORATE_PERSO;
+			ril_state.sim_status = SIM_CORPORATE_PERSO;
 			break;
 		case IPC_SEC_PIN_SIM_INIT_COMPLETE:
-			radio.sim_status = SIM_READY;
+			ril_state.sim_status = SIM_READY;
 			break;
 		case IPC_SEC_PIN_SIM_PB_INIT_COMPLETE:
 			/* Ignore phone book init complete */
@@ -122,12 +139,12 @@ void respondSimStatusChanged(RIL_Token t, void *data, int length)
 		case IPC_SEC_PIN_SIM_CARD_ERROR:
 		default:
 			/* Catchall for locked, card error and unknown states */
-			radio.sim_status = SIM_ABSENT;
+			ril_state.sim_status = SIM_ABSENT;
 			break;	
 	}
 
 	/* Update radio state based on SIM state */
-	updateRadioState(radio.sim_status);
+	ril_state_update(ril_state.sim_status);
 
 	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
 }
@@ -136,7 +153,7 @@ void respondSimStatusChanged(RIL_Token t, void *data, int length)
  * In: RIL_REQUEST_GET_SIM_STATUS
  *   Requests status of the SIM interface and the SIM card
  */
-void requestSimStatus(RIL_Token t)
+void ril_request_sim_status(RIL_Token t)
 {
 	static RIL_AppStatus app_status_array[] = {
 		/* SIM_ABSENT = 0 */
@@ -176,7 +193,7 @@ void requestSimStatus(RIL_Token t)
 	RIL_CardStatus card_status;
 
 	/* Card is assumed to be present if not explicitly absent */
-	if(radio.sim_status == SIM_ABSENT) {
+	if(ril_state.sim_status == SIM_ABSENT) {
 		card_state = RIL_CARDSTATE_ABSENT;
 	} else {
 		card_state = RIL_CARDSTATE_PRESENT;
@@ -198,7 +215,7 @@ void requestSimStatus(RIL_Token t)
 	if(card_status.card_state == RIL_CARDSTATE_PRESENT) {
 		card_status.gsm_umts_subscription_app_index = 0;
 		card_status.num_applications = 1;
-		card_status.applications[0] = app_status_array[radio.sim_status];
+		card_status.applications[0] = app_status_array[ril_state.sim_status];
 
 		/* FIXME: if USIM, set apptype */
 		//card_status.applications[0] = RIL_APPTYPE_USIM
@@ -217,7 +234,7 @@ void requestSimStatus(RIL_Token t)
  * Out: IPC_SEC_RSIM_ACCESS
  *   Performs a restricted SIM read operation
  */
-void requestSimIo(RIL_Token t, void *data, size_t datalen)
+void ril_request_sim_io(RIL_Token t, void *data, size_t datalen)
 {
 	const RIL_SIM_IO *sim_io;
 	unsigned char message[262];
@@ -247,7 +264,7 @@ void requestSimIo(RIL_Token t, void *data, size_t datalen)
 		hex2bin(sim_io->data, strlen(sim_io->data), rsim_payload);
 	}
 
-	ipc_client_send(ipc_client, IPC_SEC_RSIM_ACCESS, IPC_TYPE_GET, (unsigned char*)&message, sizeof(message), getRequestId(t));
+	ipc_fmt_send(IPC_SEC_RSIM_ACCESS, IPC_TYPE_GET, (unsigned char*)&message, sizeof(message), reqGetId(t));
 }
 
 /**
@@ -260,10 +277,10 @@ void requestSimIo(RIL_Token t, void *data, size_t datalen)
  *   where it assumes all of the EF selection will be done by the
  *   callee.
  */
-void respondSecRsimAccess(RIL_Token t, void *data, int length)
+void ipc_sec_rsim_access(struct ipc_message_info *info)
 {
-	struct ipc_sec_rsim_access_response *rsim_resp = (struct ipc_sec_rsim_access_response*)data;
-	const unsigned char *data_ptr = ((unsigned char*)data + sizeof(*rsim_resp));
+	struct ipc_sec_rsim_access_response *rsim_resp = (struct ipc_sec_rsim_access_response *) info->data;
+	const unsigned char *data_ptr = ((unsigned char *) info->data + sizeof(*rsim_resp));
 	char *sim_resp;
 	RIL_SIM_IO_Response response;
 
@@ -279,57 +296,9 @@ void respondSecRsimAccess(RIL_Token t, void *data, int length)
 		response.simResponse[0] = '\0';
 	}
 
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, &response, sizeof(response));
+	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &response, sizeof(response));
 
 	free(response.simResponse);
-}
-
-/**
- * In: RIL_REQUEST_GET_IMSI
- *   Get the SIM IMSI
- *   Only valid when radio state is "RADIO_STATE_SIM_READY"
- *
- * Out: IPC_MISC_ME_IMSI
- *   Requests ME's IMSI
- */
-void requestIMSI(RIL_Token t)
-{
-	ipc_client_send_get(IPC_MISC_ME_IMSI, getRequestId(t));
-}
-
-/**
- * In: IPC_MISC_ME_IMSI
- *   Provides ME's IMSI
- *
- * Out: RIL_REQUEST_GET_IMSI
- *   Get the SIM IMSI
- *   Only valid when radio state is "RADIO_STATE_SIM_READY"
- */
-void respondIMSI(struct ipc_message_info *request)
-{
-	unsigned char *imsi_length;
-	char *imsi;
-
-	if(request->length < 1) {
-		LOGE("%s: zero data length", __FUNCTION__);
-		RIL_onRequestComplete(getToken(request->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
-		return;
-	}
-
-	imsi_length = (unsigned char*)request->data;
-
-	if(((int)request->length) < *imsi_length + 1) {
-		LOGE("%s: missing IMSI data", __FUNCTION__);
-		RIL_onRequestComplete(getToken(request->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
-		return;
-	}
-
-	/* Copy IMSI */
-	imsi = (char*)malloc(*imsi_length+1);
-	memcpy(imsi, ((unsigned char*)request->data)+1, *imsi_length);
-	imsi[*imsi_length] = '\0';
-
-	RIL_onRequestComplete(getToken(request->aseq), RIL_E_SUCCESS, imsi, *imsi_length+1);
 }
 
 /**
@@ -342,10 +311,10 @@ void respondIMSI(struct ipc_message_info *request)
  * Out: IPC_SEC_LOCK_INFO
  *   Retrieves PIN1 lock status
  */
-void requestEnterSimPin(RIL_Token t, void *data, size_t datalen)
+void ril_request_enter_sim_pin(RIL_Token t, void *data, size_t datalen)
 {
 	struct ipc_sec_pin_status_set pin_status;
-	char *pin = ((char**)data)[0];
+	char *pin = ((char **) data)[0];
 	unsigned char buf[9];
 
 	/* 1. Send PIN */
@@ -356,15 +325,16 @@ void requestEnterSimPin(RIL_Token t, void *data, size_t datalen)
 
 	ipc_sec_pin_status_set_setup(&pin_status, IPC_SEC_PIN_TYPE_PIN1, pin, NULL);
 
-	ipc_client_send_set(IPC_SEC_PIN_STATUS, getRequestId(t), (unsigned char*)&pin_status, sizeof(pin_status));
+	ipc_fmt_send_set(IPC_SEC_PIN_STATUS, reqGetId(t), (unsigned char *) &pin_status, sizeof(pin_status));
 
 	/* 2. Get lock status */
 	memset(buf, 0, sizeof(buf));
 	buf[0] = 1;
 	buf[1] = IPC_SEC_PIN_TYPE_PIN1;
 
-	ipc_client_send(ipc_client, IPC_SEC_LOCK_INFO, IPC_TYPE_GET, buf, sizeof(buf), getRequestId(t));
+	ipc_fmt_send(IPC_SEC_LOCK_INFO, IPC_TYPE_GET, buf, sizeof(buf), reqGetId(t));
 }
+
 
 /**
  * In: IPC_GEN_PHONE_RES
@@ -373,15 +343,17 @@ void requestEnterSimPin(RIL_Token t, void *data, size_t datalen)
  * Out: RIL_REQUEST_ENTER_SIM_PIN
  *   Returns PIN SIM unlock result
  */
-void respondSecPinStatus(struct ipc_message_info *request)
+// FIXME: here, we're going to do that:
+// do the pin status req, enqueue the token to gen phone res and use this custom function (dd possibility to use custom functions on return, not only return bare requests complete with dumb RIL_E_)
+void ipc_sec_pin_status_res(struct ipc_message_info *info)
 {
-	struct ipc_gen_phone_res *gen_res = (struct ipc_gen_phone_res*)request->data;
+	struct ipc_gen_phone_res *gen_res = (struct ipc_gen_phone_res *) info->data;
 	int attempts = -1;
 
 	if(gen_res->code == 0x0010) {
-		RIL_onRequestComplete(getToken(request->aseq), RIL_E_PASSWORD_INCORRECT, &attempts, sizeof(int*));
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_PASSWORD_INCORRECT, &attempts, sizeof(int*));
 	} else if(gen_res->code == 0x8000) {
-		RIL_onRequestComplete(getToken(request->aseq), RIL_E_SUCCESS, &attempts, sizeof(int*));
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &attempts, sizeof(int*));
 	} else {
 		LOGE("%s: unhandled code %04x", __FUNCTION__, gen_res->code);
 	}
@@ -391,14 +363,14 @@ void respondSecPinStatus(struct ipc_message_info *request)
  * In: IPC_SEC_LOCK_INFO
  *   Provides number of retries left for a lock type
  */
-void respondLockInfo(struct ipc_message_info *request)
+void ipc_sec_lock_info(struct ipc_message_info *info)
 {
 	/*
 	 * FIXME: solid way of handling lockinfo and sim unlock response together
 	 * so we can return the number of attempts left in respondSecPinStatus
 	 */
 	int attempts;
-	struct ipc_sec_lock_info_response *lock_info = (struct ipc_sec_lock_info_response*)request->data;
+	struct ipc_sec_lock_info_response *lock_info = (struct ipc_sec_lock_info_response *) info->data;
 
 	if(lock_info->type == IPC_SEC_PIN_TYPE_PIN1) {
 		attempts = lock_info->attempts;
@@ -414,7 +386,7 @@ void respondLockInfo(struct ipc_message_info *request)
  *
  * Out: IPC_SEC_PHONE_LOCK GET
  */
-void requestQueryFacilityLock(RIL_Token t, void *data, size_t datalen)
+void ril_request_query_facility_lock(RIL_Token t, void *data, size_t datalen)
 {
 	unsigned char lock_type;
 	char *facility = ((char**)data)[0];
@@ -428,7 +400,7 @@ void requestQueryFacilityLock(RIL_Token t, void *data, size_t datalen)
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 	}
 
-	ipc_client_send(ipc_client, IPC_SEC_PHONE_LOCK, IPC_TYPE_GET, &lock_type, sizeof(lock_type), getRequestId(t));
+	ipc_fmt_send(IPC_SEC_PHONE_LOCK, IPC_TYPE_GET, &lock_type, sizeof(lock_type), reqGetId(t));
 }
 
 /**
@@ -437,14 +409,14 @@ void requestQueryFacilityLock(RIL_Token t, void *data, size_t datalen)
  * Out: RIL_REQUEST_QUERY_FACILITY_LOCK
  *   Query the status of a facility lock state
  */
-void respondSecPhoneLock(struct ipc_message_info *request)
+void ipc_sec_phone_lock(struct ipc_message_info *info)
 {
 	int status;
-	struct ipc_sec_phone_lock_response *lock = (struct ipc_sec_phone_lock_response*)request->data;
+	struct ipc_sec_phone_lock_response *lock = (struct ipc_sec_phone_lock_response *) info->data;
 	
 	status = lock->status;
 
-	RIL_onRequestComplete(getToken(request->aseq), RIL_E_SUCCESS, &status, sizeof(int*));
+	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &status, sizeof(int*));
 }
 
 /**
@@ -453,7 +425,7 @@ void respondSecPhoneLock(struct ipc_message_info *request)
  *
  * Out: IPC_SEC_PHONE_LOCK SET
  */
-void requestSetFacilityLock(RIL_Token t, void *data, size_t datalen)
+void ril_request_set_facility_lock(RIL_Token t, void *data, size_t datalen)
 {
 	unsigned char lock_type;
 	char *facility = ((char**)data)[0];
@@ -467,5 +439,5 @@ void requestSetFacilityLock(RIL_Token t, void *data, size_t datalen)
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 	}
 
-	ipc_client_send(ipc_client, IPC_SEC_PHONE_LOCK, IPC_TYPE_GET, &lock_type, sizeof(lock_type), getRequestId(t));
+	ipc_fmt_send(IPC_SEC_PHONE_LOCK, IPC_TYPE_GET, &lock_type, sizeof(lock_type), reqGetId(t));
 }

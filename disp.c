@@ -1,21 +1,38 @@
+/**
+ * This file is part of samsung-ril.
+ *
+ * Copyright (C) 2010-2011 Joerie de Gram <j.de.gram@gmail.com>
+ * Copyright (C) 2011 Paul Kocialkowski <contact@oaulk.fr>
+ *
+ * samsung-ril is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * samsung-ril is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with samsung-ril.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #define LOG_TAG "RIL-DISP"
 #include <utils/Log.h>
 
 #include "samsung-ril.h"
 #include "util.h"
 
-extern const struct RIL_Env *rilenv;
-extern struct radio_state radio;
-extern struct ipc_client *ipc_client;
-
-void respondIconSignalStrength(RIL_Token t, void *data, int length)
+void ipc_disp_icon_info(struct ipc_message_info *info)
 {
-	struct ipc_disp_icon_info *signal_info = (struct ipc_disp_icon_info*)data;
+	struct ipc_disp_icon_info *signal_info = (struct ipc_disp_icon_info *) info->data;
 	RIL_SignalStrength ss;
 	int rssi;
 
 	/* Don't consider this if modem isn't in normal power mode. */
-	if(radio.power_mode < POWER_MODE_NORMAL)
+	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
 
 	memset(&ss, 0, sizeof(ss));
@@ -40,14 +57,14 @@ void respondIconSignalStrength(RIL_Token t, void *data, int length)
 	RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &ss, sizeof(ss));
 }
 
-void respondSignalStrength(RIL_Token t, void *data, int length)
+void ipc_disp_rssi_info(struct ipc_message_info *info)
 {
-	struct ipc_disp_rssi_info *rssi_info = (struct ipc_disp_rssi_info*)data;
+	struct ipc_disp_rssi_info *rssi_info = (struct ipc_disp_rssi_info *) info->data;
 	RIL_SignalStrength ss;
 	int rssi;
 
 	/* Don't consider this if modem isn't in normal power mode. */
-	if(radio.power_mode < POWER_MODE_NORMAL)
+	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
 
 	memset(&ss, 0, sizeof(ss));

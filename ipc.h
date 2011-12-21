@@ -2,6 +2,7 @@
  * This file is part of samsung-ril.
  *
  * Copyright (C) 2010-2011 Joerie de Gram <j.de.gram@gmail.com>
+ * Copyright (C) 2011 Paul Kocialkowski <contact@oaulk.fr>
  *
  * samsung-ril is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,11 +19,27 @@
  *
  */
 
-#ifndef _SAMSUNG_RIL_UTIL_H_
-#define _SAMSUNG_RIL_UTIL_H_
+#ifndef _SAMSUNG_RIL_IPC_H_
+#define _SAMSUNG_RIL_IPC_H_
 
-void bin2hex(const unsigned char *data, int length, char *buf);
-void hex2bin(const char *data, int length, unsigned char *buf);
-void hex_dump(void *data, int size);
+#include "samsung-ril.h"
+
+#define ipc_fmt_send_get(command, mseq) \
+	ipc_fmt_send(command, IPC_TYPE_GET, NULL, 0, mseq)
+
+#define ipc_fmt_send_set(command, mseq, data, length) \
+	ipc_fmt_send(command, IPC_TYPE_SET, data, length, mseq)
+
+#define ipc_fmt_send_exec(command, mseq) \
+	ipc_fmt_send(command, IPC_TYPE_EXEC, NULL, 0, mseq)
+
+struct ipc_client_object {
+	struct ipc_client *ipc_client;
+	int ipc_client_fd;
+};
+
+extern struct ril_client_funcs ipc_fmt_client_funcs;
+
+void ipc_fmt_send(const unsigned short command, const char type, unsigned char *data, const int length, unsigned char mseq);
 
 #endif

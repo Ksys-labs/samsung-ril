@@ -1,3 +1,24 @@
+/**
+ * This file is part of samsung-ril.
+ *
+ * Copyright (C) 2010-2011 Joerie de Gram <j.de.gram@gmail.com>
+ * Copyright (C) 2011 Paul Kocialkowski <contact@oaulk.fr>
+ *
+ * samsung-ril is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * samsung-ril is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with samsung-ril.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #define LOG_TAG "RIL-NET"
 #include <utils/Log.h>
 
@@ -5,10 +26,6 @@
 #include "util.h"
 
 #define RIL_TOKEN_NET_DATA_WAITING	(RIL_Token) 0xff
-
-extern const struct RIL_Env *rilenv;
-extern struct radio_state radio;
-extern struct ipc_client *ipc_client;
 
 /**
  *  NET Utility functions
@@ -164,9 +181,9 @@ void gprs_reg_state_resp_ipc2ril(struct ipc_net_regist *netinfo, char *response[
  */
 void net_set_tokens_data_waiting(void)
 {
-	radio.tokens.registration_state = RIL_TOKEN_NET_DATA_WAITING;
-	radio.tokens.gprs_registration_state = RIL_TOKEN_NET_DATA_WAITING;
-	radio.tokens.operator = RIL_TOKEN_NET_DATA_WAITING;
+	ril_state.tokens.registration_state = RIL_TOKEN_NET_DATA_WAITING;
+	ril_state.tokens.gprs_registration_state = RIL_TOKEN_NET_DATA_WAITING;
+	ril_state.tokens.operator = RIL_TOKEN_NET_DATA_WAITING;
 }
 
 /**
@@ -174,7 +191,7 @@ void net_set_tokens_data_waiting(void)
  */
 int net_get_tokens_data_waiting(void)
 {
-	return radio.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING || radio.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING || radio.tokens.operator == RIL_TOKEN_NET_DATA_WAITING;
+	return ril_state.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING || ril_state.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING || ril_state.tokens.operator == RIL_TOKEN_NET_DATA_WAITING;
 }
 
 /**
@@ -182,7 +199,7 @@ int net_get_tokens_data_waiting(void)
  */
 void net_tokens_state_dump(void)
 {
-	LOGD("NET_TOKENS_STATE_DUMP:\n\tradio.tokens.registration_state = 0x%x\n\tradio.tokens.gprs_registration_state = 0x%x\n\tradio.tokens.operator = 0x%x\n", radio.tokens.registration_state, radio.tokens.gprs_registration_state, radio.tokens.operator);
+	LOGD("NET_TOKENS_STATE_DUMP:\n\tril_state.tokens.registration_state = 0x%x\n\tril_state.tokens.gprs_registration_state = 0x%x\n\tril_state.tokens.operator = 0x%x\n", ril_state.tokens.registration_state, ril_state.tokens.gprs_registration_state, ril_state.tokens.operator);
 }
 
 /**
@@ -232,26 +249,27 @@ void net_tokens_state_dump(void)
  *   request IPC_NET_CURRENT_PLMN if no data is there
  *   return RIL_E_OP_NOT_ALLOWED_BEFORE_REG_TO_NW if not registered
  */
-void requestOperator(RIL_Token t)
+void ril_request_operator(RIL_Token t)
 {
 	char *response[3];
 	int i;
 
-	if(radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_EMERGENCY ||
-	radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_NONE ||
-	radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_SEARCHING ||
-	radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_UNKNOWN) {
+	// IPC_NET_REGISTRATION_STATE_ROAMING is the biggest valid value 
+	if(ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_NONE ||
+	ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_SEARCHING ||
+	ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_UNKNOWN ||
+	ril_state.netinfo.reg_state > IPC_NET_REGISTRATION_STATE_ROAMING) {
 		RIL_onRequestComplete(t, RIL_E_OP_NOT_ALLOWED_BEFORE_REG_TO_NW, NULL, 0);
 
-		radio.tokens.operator = (RIL_Token) 0x00;
+		ril_state.tokens.operator = (RIL_Token) 0x00;
 		return;
 	}
 
-	if(radio.tokens.operator == RIL_TOKEN_NET_DATA_WAITING) {
+	if(ril_state.tokens.operator == RIL_TOKEN_NET_DATA_WAITING) {
 		LOGD("Got RILJ request for UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		plmn_ipc2ril(&(radio.plmndata), response);
+		plmn_ipc2ril(&(ril_state.plmndata), response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -260,13 +278,13 @@ void requestOperator(RIL_Token t)
 				free(response[i]);
 		}
 
-		radio.tokens.operator = (RIL_Token) 0x00;
-	} else if(radio.tokens.operator == (RIL_Token) 0x00) {
+		ril_state.tokens.operator = (RIL_Token) 0x00;
+	} else if(ril_state.tokens.operator == (RIL_Token) 0x00) {
 		LOGD("Got RILJ request for SOL data");
 		/* Request data to the modem */
-		radio.tokens.operator = t;
+		ril_state.tokens.operator = t;
 
-		ipc_client_send_get(IPC_NET_CURRENT_PLMN, getRequestId(t));
+		ipc_fmt_send_get(IPC_NET_CURRENT_PLMN, reqGetId(t));
 	} else {
 		LOGE("Another request is going on, reporting failure");
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response, sizeof(response));
@@ -284,9 +302,9 @@ void requestOperator(RIL_Token t)
  *   RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED
  *   if SOL message, send back data to RILJ
  */
-void respondOperator(struct ipc_message_info *message)
+void ipc_net_current_plmn(struct ipc_message_info *message)
 {
-	RIL_Token t = getToken(message->aseq);
+	RIL_Token t = reqGetToken(message->aseq);
 	struct ipc_net_current_plmn *plmndata = (struct ipc_net_current_plmn *) message->data;
 
 	char *response[3];
@@ -296,24 +314,25 @@ void respondOperator(struct ipc_message_info *message)
 		case IPC_TYPE_NOTI:
 			LOGD("Got UNSOL Operator message");
 
-			if(radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_EMERGENCY ||
-			radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_NONE ||
-			radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_SEARCHING ||
-			radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_UNKNOWN) {
+			// IPC_NET_REGISTRATION_STATE_ROAMING is the biggest valid value 
+			if(ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_NONE ||
+			ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_SEARCHING ||
+			ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_UNKNOWN ||
+			ril_state.netinfo.reg_state > IPC_NET_REGISTRATION_STATE_ROAMING) {
 				/* Better keeping it up to date */
-				memcpy(&(radio.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
+				memcpy(&(ril_state.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
 
 				return;
 			} else {
-				if(radio.tokens.operator != (RIL_Token) 0x00 && radio.tokens.operator != RIL_TOKEN_NET_DATA_WAITING) {
+				if(ril_state.tokens.operator != (RIL_Token) 0x00 && ril_state.tokens.operator != RIL_TOKEN_NET_DATA_WAITING) {
 					LOGE("Another Operator Req is in progress, skipping");
 					return;
 				}
 
-				memcpy(&(radio.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
+				memcpy(&(ril_state.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
 
 				/* we already told RILJ to get the new data but it wasn't done yet */
-				if(net_get_tokens_data_waiting() && radio.tokens.operator == RIL_TOKEN_NET_DATA_WAITING) {
+				if(net_get_tokens_data_waiting() && ril_state.tokens.operator == RIL_TOKEN_NET_DATA_WAITING) {
 					LOGD("Updating Operator data in background");
 				} else {
 					net_set_tokens_data_waiting();
@@ -322,24 +341,25 @@ void respondOperator(struct ipc_message_info *message)
 			}
 			break;
 		case IPC_TYPE_RESP:
-			if(radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_EMERGENCY ||
-			radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_NONE ||
-			radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_SEARCHING ||
-			radio.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_UNKNOWN) {
+			// IPC_NET_REGISTRATION_STATE_ROAMING is the biggest valid value 
+			if(ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_NONE ||
+			ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_SEARCHING ||
+			ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_UNKNOWN ||
+			ril_state.netinfo.reg_state > IPC_NET_REGISTRATION_STATE_ROAMING) {
 				/* Better keeping it up to date */
-				memcpy(&(radio.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
+				memcpy(&(ril_state.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
 
 				RIL_onRequestComplete(t, RIL_E_OP_NOT_ALLOWED_BEFORE_REG_TO_NW, NULL, 0);
 
-				if(radio.tokens.operator != RIL_TOKEN_NET_DATA_WAITING)
-					radio.tokens.operator = (RIL_Token) 0x00;
+				if(ril_state.tokens.operator != RIL_TOKEN_NET_DATA_WAITING)
+					ril_state.tokens.operator = (RIL_Token) 0x00;
 				return;
 			} else {
-				if(radio.tokens.operator != t)
+				if(ril_state.tokens.operator != t)
 					LOGE("Operator tokens mismatch");
 
 				/* Better keeping it up to date */
-				memcpy(&(radio.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
+				memcpy(&(ril_state.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
 
 				plmn_ipc2ril(plmndata, response);
 
@@ -350,8 +370,8 @@ void respondOperator(struct ipc_message_info *message)
 						free(response[i]);
 				}
 
-				if(radio.tokens.operator != RIL_TOKEN_NET_DATA_WAITING)
-					radio.tokens.operator = (RIL_Token) 0x00;
+				if(ril_state.tokens.operator != RIL_TOKEN_NET_DATA_WAITING)
+					ril_state.tokens.operator = (RIL_Token) 0x00;
 			}
 			break;
 		default:
@@ -370,17 +390,17 @@ void respondOperator(struct ipc_message_info *message)
  *   return modem UNSOL data if available
  *   request IPC_NET_REGIST if no data is there
  */
-void requestRegistrationState(RIL_Token t)
+void ril_request_registration_state(RIL_Token t)
 {
 	struct ipc_net_regist_get regist_req;
 	char *response[4];
 	int i;
 
-	if(radio.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING) {
+	if(ril_state.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING) {
 		LOGD("Got RILJ request for UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		reg_state_resp_ipc2ril(&(radio.netinfo), response);
+		reg_state_resp_ipc2ril(&(ril_state.netinfo), response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -389,14 +409,14 @@ void requestRegistrationState(RIL_Token t)
 				free(response[i]);
 		}
 
-		radio.tokens.registration_state = (RIL_Token) 0x00;
-	} else if(radio.tokens.registration_state == (RIL_Token) 0x00) {
+		ril_state.tokens.registration_state = (RIL_Token) 0x00;
+	} else if(ril_state.tokens.registration_state == (RIL_Token) 0x00) {
 		LOGD("Got RILJ request for SOL data");
 		/* Request data to the modem */
-		radio.tokens.registration_state = t;
+		ril_state.tokens.registration_state = t;
 
 		ipc_net_regist_get(&regist_req, IPC_NET_SERVICE_DOMAIN_GSM);
-		ipc_client_send(ipc_client, IPC_NET_REGIST, IPC_TYPE_GET, (void *)&regist_req, sizeof(struct ipc_net_regist_get), getRequestId(t));
+		ipc_fmt_send(IPC_NET_REGIST, IPC_TYPE_GET, (void *)&regist_req, sizeof(struct ipc_net_regist_get), reqGetId(t));
 	} else {
 		LOGE("Another request is going on, reporting failure");
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -413,17 +433,17 @@ void requestRegistrationState(RIL_Token t)
  *   return modem UNSOL data if available
  *   request IPC_NET_REGIST if no data is there
  */
-void requestGPRSRegistrationState(RIL_Token t)
+void ril_request_gprs_registration_state(RIL_Token t)
 {
 	struct ipc_net_regist_get regist_req;
 	char *response[4];
 	int i;
 
-	if(radio.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING) {
+	if(ril_state.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING) {
 		LOGD("Got RILJ request for UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		gprs_reg_state_resp_ipc2ril(&(radio.gprs_netinfo), response);
+		gprs_reg_state_resp_ipc2ril(&(ril_state.gprs_netinfo), response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -432,15 +452,15 @@ void requestGPRSRegistrationState(RIL_Token t)
 				free(response[i]);
 		}
 
-		radio.tokens.gprs_registration_state = (RIL_Token) 0x00;
-	} else if(radio.tokens.gprs_registration_state == (RIL_Token) 0x00) {
+		ril_state.tokens.gprs_registration_state = (RIL_Token) 0x00;
+	} else if(ril_state.tokens.gprs_registration_state == (RIL_Token) 0x00) {
 		LOGD("Got RILJ request for SOL data");
 
 		/* Request data to the modem */
-		radio.tokens.gprs_registration_state = t;
+		ril_state.tokens.gprs_registration_state = t;
 
 		ipc_net_regist_get(&regist_req, IPC_NET_SERVICE_DOMAIN_GPRS);
-		ipc_client_send(ipc_client, IPC_NET_REGIST, IPC_TYPE_GET, (void *)&regist_req, sizeof(struct ipc_net_regist_get), getRequestId(t));
+		ipc_fmt_send(IPC_NET_REGIST, IPC_TYPE_GET, (void *)&regist_req, sizeof(struct ipc_net_regist_get), reqGetId(t));
 	} else {
 		LOGE("Another request is going on, reporting failure");
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -449,7 +469,7 @@ void requestGPRSRegistrationState(RIL_Token t)
 	net_tokens_state_dump();
 }
 
-void respondNetRegistUnsol(struct ipc_message_info *message)
+void ipc_net_regist_unsol(struct ipc_message_info *message)
 {
 	struct ipc_net_regist *netinfo;
 	netinfo = (struct ipc_net_regist *) message->data;
@@ -458,15 +478,15 @@ void respondNetRegistUnsol(struct ipc_message_info *message)
 
 	switch(netinfo->domain) {
 		case IPC_NET_SERVICE_DOMAIN_GSM:
-			if(radio.tokens.registration_state != (RIL_Token) 0 && radio.tokens.registration_state != RIL_TOKEN_NET_DATA_WAITING) {
+			if(ril_state.tokens.registration_state != (RIL_Token) 0 && ril_state.tokens.registration_state != RIL_TOKEN_NET_DATA_WAITING) {
 				LOGE("Another NetRegist Req is in progress, skipping");
 				return;
 			}
 
-			memcpy(&(radio.netinfo), netinfo, sizeof(struct ipc_net_regist));
+			memcpy(&(ril_state.netinfo), netinfo, sizeof(struct ipc_net_regist));
 
 			/* we already told RILJ to get the new data but it wasn't done yet */
-			if(net_get_tokens_data_waiting() && radio.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING) {
+			if(net_get_tokens_data_waiting() && ril_state.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING) {
 				LOGD("Updating NetRegist data in background");
 			} else {
 				net_set_tokens_data_waiting();
@@ -475,15 +495,15 @@ void respondNetRegistUnsol(struct ipc_message_info *message)
 			break;
 
 		case IPC_NET_SERVICE_DOMAIN_GPRS:
-			if(radio.tokens.gprs_registration_state != (RIL_Token) 0 && radio.tokens.gprs_registration_state != RIL_TOKEN_NET_DATA_WAITING) {
+			if(ril_state.tokens.gprs_registration_state != (RIL_Token) 0 && ril_state.tokens.gprs_registration_state != RIL_TOKEN_NET_DATA_WAITING) {
 				LOGE("Another GPRS NetRegist Req is in progress, skipping");
 				return;
 			}
 
-			memcpy(&(radio.gprs_netinfo), netinfo, sizeof(struct ipc_net_regist));
+			memcpy(&(ril_state.gprs_netinfo), netinfo, sizeof(struct ipc_net_regist));
 
 			/* we already told RILJ to get the new data but it wasn't done yet */
-			if(net_get_tokens_data_waiting() && radio.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING) {
+			if(net_get_tokens_data_waiting() && ril_state.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING) {
 				LOGD("Updating GPRSNetRegist data in background");
 			} else {
 				net_set_tokens_data_waiting();
@@ -498,23 +518,23 @@ void respondNetRegistUnsol(struct ipc_message_info *message)
 	net_tokens_state_dump();
 }
 
-void respondNetRegistSol(struct ipc_message_info *message)
+void ipc_net_regist_sol(struct ipc_message_info *message)
 {
 	char *response[4];
 	int i;
 
 	struct ipc_net_regist *netinfo = (struct ipc_net_regist *) message->data;
-	RIL_Token t = getToken(message->aseq);
+	RIL_Token t = reqGetToken(message->aseq);
 
 	LOGD("Got SOL NetRegist message");
 
 	switch(netinfo->domain) {
 		case IPC_NET_SERVICE_DOMAIN_GSM:
-			if(radio.tokens.registration_state != t)
+			if(ril_state.tokens.registration_state != t)
 				LOGE("Registration state tokens mismatch");
 
 			/* Better keeping it up to date */
-			memcpy(&(radio.netinfo), netinfo, sizeof(struct ipc_net_regist));
+			memcpy(&(ril_state.netinfo), netinfo, sizeof(struct ipc_net_regist));
 
 			reg_state_resp_ipc2ril(netinfo, response);
 
@@ -525,15 +545,15 @@ void respondNetRegistSol(struct ipc_message_info *message)
 					free(response[i]);
 			}
 
-			if(radio.tokens.registration_state != RIL_TOKEN_NET_DATA_WAITING)
-				radio.tokens.registration_state = (RIL_Token) 0x00;
+			if(ril_state.tokens.registration_state != RIL_TOKEN_NET_DATA_WAITING)
+				ril_state.tokens.registration_state = (RIL_Token) 0x00;
 			break;
 		case IPC_NET_SERVICE_DOMAIN_GPRS:
-			if(radio.tokens.gprs_registration_state != t)
+			if(ril_state.tokens.gprs_registration_state != t)
 				LOGE("GPRS registration state tokens mismatch");
 
 			/* Better keeping it up to date */
-			memcpy(&(radio.gprs_netinfo), netinfo, sizeof(struct ipc_net_regist));
+			memcpy(&(ril_state.gprs_netinfo), netinfo, sizeof(struct ipc_net_regist));
 
 			gprs_reg_state_resp_ipc2ril(netinfo, response);
 
@@ -543,8 +563,8 @@ void respondNetRegistSol(struct ipc_message_info *message)
 				if(response[i] != NULL)
 					free(response[i]);
 			}
-			if(radio.tokens.registration_state != RIL_TOKEN_NET_DATA_WAITING)
-				radio.tokens.gprs_registration_state = (RIL_Token) 0x00;
+			if(ril_state.tokens.registration_state != RIL_TOKEN_NET_DATA_WAITING)
+				ril_state.tokens.gprs_registration_state = (RIL_Token) 0x00;
 			break;
 		default:
 			LOGE("%s: unhandled service domain: %d", __FUNCTION__, netinfo->domain);
@@ -558,18 +578,18 @@ void respondNetRegistSol(struct ipc_message_info *message)
  * In: IPC_NET_REGIST
  *   This can be SOL (RESP) or UNSOL (NOTI) message from modem
  */
-void respondNetRegist(struct ipc_message_info *message)
+void ipc_net_regist(struct ipc_message_info *message)
 {
 	/* Don't consider this if modem isn't in normal power mode. */
-	if(radio.power_mode < POWER_MODE_NORMAL)
+	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
 
 	switch(message->type) {
 		case IPC_TYPE_NOTI:
-			respondNetRegistUnsol(message);
+			ipc_net_regist_unsol(message);
 			break;
 		case IPC_TYPE_RESP:
-			respondNetRegistSol(message);
+			ipc_net_regist_sol(message);
 			break;
 		default:
 			LOGE("%s: unhandled ipc method: %d", __FUNCTION__, message->type);
@@ -578,42 +598,14 @@ void respondNetRegist(struct ipc_message_info *message)
 
 }
 
-void requestGetPreferredNetworkType(RIL_Token t)
-{
-	ipc_client_send_get(IPC_NET_MODE_SEL, getRequestId(t));
-}
-
-void respondModeSel(struct ipc_message_info *request)
-{
-	unsigned char ipc_mode = *(unsigned char*)request->data;
-	int ril_mode = modesel_ipc2ril(ipc_mode);
-
-	RIL_onRequestComplete(getToken(request->aseq), RIL_E_SUCCESS, &ril_mode, sizeof(int*));
-}
-
-void requestSetPreferredNetworkType(RIL_Token t, void *data, size_t datalen)
-{
-	int ril_mode = *(int*)data;
-	unsigned char ipc_mode = modesel_ril2ipc(ril_mode);
-
-	ipc_client_send(ipc_client, IPC_NET_MODE_SEL, IPC_TYPE_SET, &ipc_mode, sizeof(ipc_mode), getRequestId(t));
-}
-
-// FIXME: add corect implementation
-void requestNwSelectionMode(RIL_Token t)
-{
-	unsigned int mode = 0;
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, &mode, sizeof(mode));
-}
-
 /**
  * In: RIL_REQUEST_QUERY_AVAILABLE_NETWORKS
  * 
  * Out: IPC_NET_PLMN_LIST
  */
-void requestAvailNetworks(RIL_Token t)
+void ril_request_query_available_networks(RIL_Token t)
 {
-	ipc_client_send_get(IPC_NET_PLMN_LIST, getRequestId(t));
+	ipc_fmt_send_get(IPC_NET_PLMN_LIST, reqGetId(t));
 }
 
 /* FIXME: cleanup struct names & resp[] addressing */
@@ -622,11 +614,11 @@ void requestAvailNetworks(RIL_Token t)
  * Send back available PLMN list
  *
  */
-void respondAvailNetworks(RIL_Token t, void *data, int length)
+void ipc_net_plmn_list(struct ipc_message_info *info)
 {
-	struct ipc_net_plmn_entries *entries_info = (struct ipc_net_plmn_entries*)data;
+	struct ipc_net_plmn_entries *entries_info = (struct ipc_net_plmn_entries *) info->data;
 	struct ipc_net_plmn_entry *entries = (struct ipc_net_plmn_entry *)
-		(data + sizeof(struct ipc_net_plmn_entries));
+		(info->data + sizeof(struct ipc_net_plmn_entries));
 
 	int i;
 	int size = (4 * entries_info->num * sizeof(char*));
@@ -634,7 +626,9 @@ void respondAvailNetworks(RIL_Token t, void *data, int length)
 
 	char **resp = malloc(size);
 	char **resp_ptr = resp;
-LOGE("Listed %d PLMNs\n", entries_info->num);
+
+	LOGD("Listed %d PLMNs\n", entries_info->num);
+
 	for(i = 0; i < entries_info->num; i++) {
 		/* Assumed type for 'emergency only' PLMNs */
 		if(entries[i].type == 0x01)
@@ -675,8 +669,36 @@ LOGE("Listed %d PLMNs\n", entries_info->num);
 		resp_ptr += 4;
 	}
 
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, resp, (4 * sizeof(char*) * actual_size));
+	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, resp, (4 * sizeof(char*) * actual_size));
 
 	/* FIXME: free individual strings */
 	free(resp);
+}
+
+// FIXME: add corect implementation
+void ril_request_query_network_selection_mode(RIL_Token t)
+{
+	unsigned int mode = 0;
+	RIL_onRequestComplete(t, RIL_E_SUCCESS, &mode, sizeof(mode));
+}
+
+void ril_request_get_preferred_network_type(RIL_Token t)
+{
+	ipc_fmt_send_get(IPC_NET_MODE_SEL, reqGetId(t));
+}
+
+void ril_request_set_preffered_network_type(RIL_Token t, void *data, size_t datalen)
+{
+	int ril_mode = *(int*)data;
+	unsigned char ipc_mode = modesel_ril2ipc(ril_mode);
+
+	ipc_fmt_send(IPC_NET_MODE_SEL, IPC_TYPE_SET, &ipc_mode, sizeof(ipc_mode), reqGetId(t));
+}
+
+void ipc_net_mode_sel(struct ipc_message_info *info)
+{
+	unsigned char ipc_mode = *(unsigned char *) info->data;
+	int ril_mode = modesel_ipc2ril(ipc_mode);
+
+	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ril_mode, sizeof(int*));
 }
