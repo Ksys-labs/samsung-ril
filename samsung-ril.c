@@ -34,9 +34,21 @@
 /**
  * Samsung-RIL TODO:
  * - add IPC_NET_SERVING_NETWORK
- * - client prefix first: ipc2ril_reg_state
- * - all these functions on the top
- * - use checked function before returning a token to RILJ
+ * - add RFS NV_DATA functions
+ *   libsamsung-ipc: export nv_data functions as common
+ * - add data support
+ * - stabilize SMS
+ * - complete sound handling
+ * - USSD codes
+ * - full operators list
+ * - airplane mode: trace: sys nodes?
+ * - ipc_disp_icon_info: trace on RILJ & emulate RIl_REQUEST_SIGNAL_STRENGTH
+ * - look at /sys nodes for data and airplane
+ * - fails at killall zygote?
+ * - call with +33
+ * - gen phone res queue
+ * - SMS ret isn't NULL (tpid)
+ * - Android "0" net type (logs)!
  */
 
 /**
@@ -91,7 +103,7 @@ RIL_Token ril_request_get_token(int id)
 	return ril_requests_tokens[id].token;
 }
 
-int ril_request_is_valid(RIL_Token token)
+int ril_request_get_canceled(RIL_Token token)
 {
 	int id;
 
@@ -101,6 +113,23 @@ int ril_request_is_valid(RIL_Token token)
 		return 1;
 	else
 		return 0;
+}
+
+void ril_request_set_canceled(RIL_Token token, int canceled)
+{
+	int id;
+
+	id = ril_request_get_id(token);
+
+	ril_requests_tokens[id].canceled = canceled;
+}
+
+void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responselen)
+{
+	if(!ril_request_get_canceled(t))
+		RIL_onRequestCompleteReal(t, e, response, responselen);
+	else
+		RIL_onRequestCompleteReal(t, RIL_E_CANCELLED, response, responselen);
 }
 
 /**
@@ -236,6 +265,28 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 			break;
 		default:
 			LOGD("Unknown msgtype: %04x", info->type);
+			break;
+	}
+}
+
+void ipc_rfs_dispatch(struct ipc_message_info *info)
+{
+	struct ipc_rfs_io *rfs_io;
+
+	switch(IPC_COMMAND(info)) {
+		case IPC_RFS_NV_READ_ITEM:
+			LOGD("--> IPC_RFS_NV_READ_ITEM");
+			rfs_io = (struct ipc_rfs_io *) info->data;
+
+			LOGD("asking to read 0x%x bytes at offset 0x%x", rfs_io->length, rfs_io->offset);
+
+			break;
+		case IPC_RFS_NV_WRITE_ITEM:
+			LOGD("--> IPC_RFS_NV_WRITE_ITEM");
+
+			rfs_io = (struct ipc_rfs_io *) info->data;
+
+			LOGD("asking to write 0x%x bytes at offset 0x%x", rfs_io->length, rfs_io->offset);
 			break;
 	}
 }
@@ -400,7 +451,7 @@ int onSupports(int requestCode)
 
 void onCancel(RIL_Token t)
 {
-	/* Todo */
+	ril_request_set_canceled(t, 1);
 }
 
 const char *getVersion(void)
@@ -439,6 +490,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
 	memset(&(ril_state.tokens), 0, sizeof(struct ril_tokens));
 
 ipc_fmt:
+	LOGD("Creating IPC FMT client");
+
 	ipc_fmt_client = ril_client_new(&ipc_fmt_client_funcs);
 	rc = ril_client_create(ipc_fmt_client);
 
@@ -457,9 +510,28 @@ ipc_fmt:
 	LOGD("IPC FMT client ready");
 
 ipc_rfs:
-	LOGD("Wait for the rest to be working before doing RFS");
+	LOGD("Creating IPC RFS client");
+
+	ipc_rfs_client = ril_client_new(&ipc_rfs_client_funcs);
+	rc = ril_client_create(ipc_rfs_client);
+
+	if(rc < 0) {
+		LOGE("IPC RFS client creation failed.");
+		goto srs;
+	}
+
+	rc = ril_client_thread_start(ipc_rfs_client);
+
+	if(rc < 0) {
+		LOGE("IPC RFS thread creation failed.");
+		goto srs;
+	}
+
+	LOGD("IPC RFS client ready");
 
 srs:
+	LOGD("Creating SRS client");
+
 	srs_client = ril_client_new(&srs_client_funcs);
 	rc = ril_client_create(srs_client);
 

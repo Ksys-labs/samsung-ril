@@ -25,6 +25,31 @@
 #include "samsung-ril.h"
 
 /**
+ * Format conversion utils
+ */
+
+unsigned char ipc2ril_call_list_entry_state(unsigned char call_state)
+{
+	switch(call_state) {
+		case IPC_CALL_LIST_ENTRY_STATE_ACTIVE:
+			return RIL_CALL_ACTIVE;
+		case IPC_CALL_LIST_ENTRY_STATE_HOLDING:
+			return RIL_CALL_HOLDING;
+		case IPC_CALL_LIST_ENTRY_STATE_DIALING:
+			return RIL_CALL_DIALING;
+		case IPC_CALL_LIST_ENTRY_STATE_ALERTING:
+			return RIL_CALL_ALERTING;
+		case IPC_CALL_LIST_ENTRY_STATE_INCOMING:
+			return RIL_CALL_INCOMING;
+		case IPC_CALL_LIST_ENTRY_STATE_WAITING:
+			return RIL_CALL_WAITING;
+		default:
+			LOGE("Unknown IPC_CALL_LIST_ENTRY_STATE!");
+			return -1;
+	}
+}
+
+/**
  * In: RIL_UNSOL_CALL_RING
  *   Ring indication for an incoming call (eg, RING or CRING event).
  */
@@ -96,27 +121,6 @@ void ril_request_dial(RIL_Token t, void *data, size_t datalen)
 	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 }
 
-unsigned char call_list_entry_state_ipc2ril(unsigned char call_state)
-{
-	switch(call_state) {
-		case IPC_CALL_LIST_ENTRY_STATE_ACTIVE:
-			return RIL_CALL_ACTIVE;
-		case IPC_CALL_LIST_ENTRY_STATE_HOLDING:
-			return RIL_CALL_HOLDING;
-		case IPC_CALL_LIST_ENTRY_STATE_DIALING:
-			return RIL_CALL_DIALING;
-		case IPC_CALL_LIST_ENTRY_STATE_ALERTING:
-			return RIL_CALL_ALERTING;
-		case IPC_CALL_LIST_ENTRY_STATE_INCOMING:
-			return RIL_CALL_INCOMING;
-		case IPC_CALL_LIST_ENTRY_STATE_WAITING:
-			return RIL_CALL_WAITING;
-		default:
-			LOGE("Unknown IPC_CALL_LIST_ENTRY_STATE!");
-			return -1;
-	}
-}
-
 /**
  * In: RIL_REQUEST_GET_CURRENT_CALLS
  *   Requests current call list
@@ -158,7 +162,7 @@ void ipc_call_list(struct ipc_message_info *info)
 		memset(number_ril, 0, (entry->number_len + 1));
 		memcpy(number_ril, number, entry->number_len);
 
-		call->state = call_list_entry_state_ipc2ril(entry->state);
+		call->state = ipc2ril_call_list_entry_state(entry->state);
 		call->index = (entry->idx+1);
 		call->toa = (entry->number_len > 0 && number[0] == '+') ? 145 : 129;
 		call->isMpty = entry->mpty;

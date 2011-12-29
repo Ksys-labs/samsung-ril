@@ -28,13 +28,13 @@
 #define RIL_TOKEN_NET_DATA_WAITING	(RIL_Token) 0xff
 
 /**
- *  NET Utility functions
+ * Format conversion utils
  */
 
 /**
  * Converts IPC network registration status to Android RIL format
  */
-unsigned char reg_state_ipc2ril(unsigned char reg_state)
+unsigned char ipc2ril_reg_state(unsigned char reg_state)
 {
 	switch(reg_state) {
 		case IPC_NET_REGISTRATION_STATE_NONE:
@@ -58,7 +58,7 @@ unsigned char reg_state_ipc2ril(unsigned char reg_state)
 /**
  * Converts IPC network access technology to Android RIL format
  */
-unsigned char act_ipc2ril(unsigned char act)
+unsigned char ipc2ril_act(unsigned char act)
 {
 	switch(act) {
 		case IPC_NET_ACCESS_TECHNOLOGY_GPRS:
@@ -77,7 +77,7 @@ unsigned char act_ipc2ril(unsigned char act)
 /**
  * Converts IPC GPRS network access technology to Android RIL format
  */
-unsigned char gprs_act_ipc2ril(unsigned char act)
+unsigned char ipc2ril_gprs_act(unsigned char act)
 {
 	switch(act) {
 		case IPC_NET_ACCESS_TECHNOLOGY_GPRS:
@@ -96,7 +96,7 @@ unsigned char gprs_act_ipc2ril(unsigned char act)
 /**
  * Converts IPC preferred network type to Android RIL format
  */
-unsigned char modesel_ipc2ril(unsigned char mode)
+unsigned char ipc2ril_modesel(unsigned char mode)
 {
 	switch(mode) {
 		case 0:
@@ -115,7 +115,7 @@ unsigned char modesel_ipc2ril(unsigned char mode)
 /**
  * Converts Android RIL preferred network type to IPC format
  */
-unsigned char modesel_ril2ipc(unsigned char mode)
+unsigned char ril2ipc_modesel(unsigned char mode)
 {
 	switch(mode) {
 		case 1:
@@ -130,7 +130,7 @@ unsigned char modesel_ril2ipc(unsigned char mode)
 /**
  * Converts IPC PLMC to Android format
  */
-void plmn_ipc2ril(struct ipc_net_current_plmn *plmndata, char *response[3])
+void ipc2ril_plmn(struct ipc_net_current_plmn *plmndata, char *response[3])
 {
 	char plmn[7];
 
@@ -150,27 +150,34 @@ void plmn_ipc2ril(struct ipc_net_current_plmn *plmndata, char *response[3])
 /**
  * Converts IPC reg state to Android format
  */
-void reg_state_resp_ipc2ril(struct ipc_net_regist *netinfo, char *response[15])
+void ipc2ril_reg_state_resp(struct ipc_net_regist *netinfo, char *response[15])
 {
+	unsigned char reg_state = ipc2ril_reg_state(netinfo->reg_state);
+	unsigned char act = ipc2ril_act(netinfo->act);
+
 	memset(response, 0, sizeof(response));
 
-	asprintf(&response[0], "%d", reg_state_ipc2ril(netinfo->reg_state));
+	asprintf(&response[0], "%d", reg_state);
 	asprintf(&response[1], "%x", netinfo->lac);
 	asprintf(&response[2], "%x", netinfo->cid);
-	asprintf(&response[3], "%d", act_ipc2ril(netinfo->act));
+	if(act)
+		asprintf(&response[3], "%d", act);
 }
 
 /**
  * Converts IPC GPRS reg state to Android format
  */
-void gprs_reg_state_resp_ipc2ril(struct ipc_net_regist *netinfo, char *response[4])
+void ipc2ril_gprs_reg_state_resp(struct ipc_net_regist *netinfo, char *response[4])
 {
+	unsigned char reg_state = ipc2ril_reg_state(netinfo->reg_state);
+	unsigned char act = ipc2ril_gprs_act(netinfo->act);
+
 	memset(response, 0, sizeof(response));
 
-	asprintf(&response[0], "%d", reg_state_ipc2ril(netinfo->reg_state));
+	asprintf(&response[0], "%d", reg_state);
 	asprintf(&response[1], "%x", netinfo->lac);
 	asprintf(&response[2], "%x", netinfo->cid);
-	asprintf(&response[3], "%d", gprs_act_ipc2ril(netinfo->act));
+	asprintf(&response[3], "%d", act);
 }
 
 /**
@@ -179,7 +186,7 @@ void gprs_reg_state_resp_ipc2ril(struct ipc_net_regist *netinfo, char *response[
  * to ask the modem new NET Regist and GPRS Net Regist states so act like we got
  * these from modem NOTI too so we don't have to make the requests
  */
-void net_set_tokens_data_waiting(void)
+void ril_tokens_net_set_data_waiting(void)
 {
 	ril_state.tokens.registration_state = RIL_TOKEN_NET_DATA_WAITING;
 	ril_state.tokens.gprs_registration_state = RIL_TOKEN_NET_DATA_WAITING;
@@ -189,7 +196,7 @@ void net_set_tokens_data_waiting(void)
 /**
  * Returns 1 if unsol data is waiting, 0 if not
  */
-int net_get_tokens_data_waiting(void)
+int ril_tokens_net_get_data_waiting(void)
 {
 	return ril_state.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING || ril_state.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING || ril_state.tokens.operator == RIL_TOKEN_NET_DATA_WAITING;
 }
@@ -197,9 +204,9 @@ int net_get_tokens_data_waiting(void)
 /**
  * Print net tokens values
  */
-void net_tokens_state_dump(void)
+void ril_tokens_net_state_dump(void)
 {
-	LOGD("NET_TOKENS_STATE_DUMP:\n\tril_state.tokens.registration_state = 0x%x\n\tril_state.tokens.gprs_registration_state = 0x%x\n\tril_state.tokens.operator = 0x%x\n", ril_state.tokens.registration_state, ril_state.tokens.gprs_registration_state, ril_state.tokens.operator);
+	LOGD("ril_tokens_net_state_dump:\n\tril_state.tokens.registration_state = 0x%x\n\tril_state.tokens.gprs_registration_state = 0x%x\n\tril_state.tokens.operator = 0x%x\n", ril_state.tokens.registration_state, ril_state.tokens.gprs_registration_state, ril_state.tokens.operator);
 }
 
 /**
@@ -269,7 +276,7 @@ void ril_request_operator(RIL_Token t)
 		LOGD("Got RILJ request for UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		plmn_ipc2ril(&(ril_state.plmndata), response);
+		ipc2ril_plmn(&(ril_state.plmndata), response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -290,7 +297,7 @@ void ril_request_operator(RIL_Token t)
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, response, sizeof(response));
 	}
 
-	net_tokens_state_dump();
+	ril_tokens_net_state_dump();
 }
 
 /**
@@ -332,10 +339,10 @@ void ipc_net_current_plmn(struct ipc_message_info *message)
 				memcpy(&(ril_state.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
 
 				/* we already told RILJ to get the new data but it wasn't done yet */
-				if(net_get_tokens_data_waiting() && ril_state.tokens.operator == RIL_TOKEN_NET_DATA_WAITING) {
+				if(ril_tokens_net_get_data_waiting() && ril_state.tokens.operator == RIL_TOKEN_NET_DATA_WAITING) {
 					LOGD("Updating Operator data in background");
 				} else {
-					net_set_tokens_data_waiting();
+					ril_tokens_net_set_data_waiting();
 					RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED, NULL, 0);
 				}
 			}
@@ -361,7 +368,7 @@ void ipc_net_current_plmn(struct ipc_message_info *message)
 				/* Better keeping it up to date */
 				memcpy(&(ril_state.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
 
-				plmn_ipc2ril(plmndata, response);
+				ipc2ril_plmn(plmndata, response);
 
 				RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -379,7 +386,7 @@ void ipc_net_current_plmn(struct ipc_message_info *message)
 			break;
 	}
 
-	net_tokens_state_dump();
+	ril_tokens_net_state_dump();
 }
 
 /**
@@ -400,7 +407,7 @@ void ril_request_registration_state(RIL_Token t)
 		LOGD("Got RILJ request for UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		reg_state_resp_ipc2ril(&(ril_state.netinfo), response);
+		ipc2ril_reg_state_resp(&(ril_state.netinfo), response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -422,7 +429,7 @@ void ril_request_registration_state(RIL_Token t)
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 	}
 
-	net_tokens_state_dump();
+	ril_tokens_net_state_dump();
 }
 
 /**
@@ -443,7 +450,7 @@ void ril_request_gprs_registration_state(RIL_Token t)
 		LOGD("Got RILJ request for UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		gprs_reg_state_resp_ipc2ril(&(ril_state.gprs_netinfo), response);
+		ipc2ril_gprs_reg_state_resp(&(ril_state.gprs_netinfo), response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -466,7 +473,7 @@ void ril_request_gprs_registration_state(RIL_Token t)
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
 	}
 
-	net_tokens_state_dump();
+	ril_tokens_net_state_dump();
 }
 
 void ipc_net_regist_unsol(struct ipc_message_info *message)
@@ -486,10 +493,10 @@ void ipc_net_regist_unsol(struct ipc_message_info *message)
 			memcpy(&(ril_state.netinfo), netinfo, sizeof(struct ipc_net_regist));
 
 			/* we already told RILJ to get the new data but it wasn't done yet */
-			if(net_get_tokens_data_waiting() && ril_state.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING) {
+			if(ril_tokens_net_get_data_waiting() && ril_state.tokens.registration_state == RIL_TOKEN_NET_DATA_WAITING) {
 				LOGD("Updating NetRegist data in background");
 			} else {
-				net_set_tokens_data_waiting();
+				ril_tokens_net_set_data_waiting();
 				RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED, NULL, 0);
 			}
 			break;
@@ -503,10 +510,10 @@ void ipc_net_regist_unsol(struct ipc_message_info *message)
 			memcpy(&(ril_state.gprs_netinfo), netinfo, sizeof(struct ipc_net_regist));
 
 			/* we already told RILJ to get the new data but it wasn't done yet */
-			if(net_get_tokens_data_waiting() && ril_state.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING) {
+			if(ril_tokens_net_get_data_waiting() && ril_state.tokens.gprs_registration_state == RIL_TOKEN_NET_DATA_WAITING) {
 				LOGD("Updating GPRSNetRegist data in background");
 			} else {
-				net_set_tokens_data_waiting();
+				ril_tokens_net_set_data_waiting();
 				RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED, NULL, 0);
 			}
 			break;
@@ -515,7 +522,7 @@ void ipc_net_regist_unsol(struct ipc_message_info *message)
 			break;
 	}
 
-	net_tokens_state_dump();
+	ril_tokens_net_state_dump();
 }
 
 void ipc_net_regist_sol(struct ipc_message_info *message)
@@ -536,7 +543,7 @@ void ipc_net_regist_sol(struct ipc_message_info *message)
 			/* Better keeping it up to date */
 			memcpy(&(ril_state.netinfo), netinfo, sizeof(struct ipc_net_regist));
 
-			reg_state_resp_ipc2ril(netinfo, response);
+			ipc2ril_reg_state_resp(netinfo, response);
 
 			RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -555,7 +562,7 @@ void ipc_net_regist_sol(struct ipc_message_info *message)
 			/* Better keeping it up to date */
 			memcpy(&(ril_state.gprs_netinfo), netinfo, sizeof(struct ipc_net_regist));
 
-			gprs_reg_state_resp_ipc2ril(netinfo, response);
+			ipc2ril_gprs_reg_state_resp(netinfo, response);
 
 			RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -571,7 +578,7 @@ void ipc_net_regist_sol(struct ipc_message_info *message)
 			break;
 	}
 
-	net_tokens_state_dump();
+	ril_tokens_net_state_dump();
 }
 
 /**
@@ -690,7 +697,7 @@ void ril_request_get_preferred_network_type(RIL_Token t)
 void ril_request_set_preffered_network_type(RIL_Token t, void *data, size_t datalen)
 {
 	int ril_mode = *(int*)data;
-	unsigned char ipc_mode = modesel_ril2ipc(ril_mode);
+	unsigned char ipc_mode = ril2ipc_modesel(ril_mode);
 
 	ipc_fmt_send(IPC_NET_MODE_SEL, IPC_TYPE_SET, &ipc_mode, sizeof(ipc_mode), reqGetId(t));
 }
@@ -698,7 +705,7 @@ void ril_request_set_preffered_network_type(RIL_Token t, void *data, size_t data
 void ipc_net_mode_sel(struct ipc_message_info *info)
 {
 	unsigned char ipc_mode = *(unsigned char *) info->data;
-	int ril_mode = modesel_ipc2ril(ipc_mode);
+	int ril_mode = ipc2ril_modesel(ipc_mode);
 
 	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ril_mode, sizeof(int*));
 }

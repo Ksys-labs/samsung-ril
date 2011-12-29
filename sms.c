@@ -25,6 +25,34 @@
 #include "samsung-ril.h"
 #include "util.h"
 
+/**
+ * Format conversion utils
+ */
+
+unsigned short ril2ipc_sms_ack_error(int success, int failcause)
+{
+	if(success) {
+		return IPC_SMS_ACK_NO_ERROR;
+	} else {
+		switch(failcause) {
+			case 0xD3:
+				return IPC_SMS_ACK_PDA_FULL_ERROR;
+			default:
+				return IPC_SMS_ACK_UNSPEC_ERROR;
+		}
+	}
+}
+
+RIL_Errno ipc2ril_sms_ack_error(unsigned short error)
+{
+	switch(error) {
+		case IPC_SMS_ACK_NO_ERROR:
+			return RIL_E_SUCCESS;
+		default:
+			return RIL_E_GENERIC_FAILURE;
+	}
+}
+
 void ipc_sms_incoming_msg(struct ipc_message_info *info)
 {
 	struct ipc_sms_incoming_msg *msg = (struct ipc_sms_incoming_msg *) info->data;
@@ -56,30 +84,6 @@ exit:
 	free(resp);
 }
 
-unsigned short sms_ack_error_ril2ipc(int success, int failcause)
-{
-	if(success) {
-		return IPC_SMS_ACK_NO_ERROR;
-	} else {
-		switch(failcause) {
-			case 0xD3:
-				return IPC_SMS_ACK_PDA_FULL_ERROR;
-			default:
-				return IPC_SMS_ACK_UNSPEC_ERROR;
-		}
-	}
-}
-
-RIL_Errno sms_ack_error_ipc2ril(unsigned short error)
-{
-	switch(error) {
-		case IPC_SMS_ACK_NO_ERROR:
-			return RIL_E_SUCCESS;
-		default:
-			return RIL_E_GENERIC_FAILURE;
-	}
-}
-
 /**
  * In: RIL_REQUEST_SMS_ACKNOWLEDGE
  *   Acknowledge successful or failed receipt of SMS previously indicated
@@ -100,7 +104,7 @@ void ril_request_sms_acknowledge(RIL_Token t, void *data, size_t datalen)
 	}
 
 	report_msg.type = IPC_SMS_TYPE_STATUS_REPORT;
-	report_msg.error = sms_ack_error_ril2ipc(success, failcause);
+	report_msg.error = ril2ipc_sms_ack_error(success, failcause);
 	report_msg.msg_tpid = ril_state.msg_tpid_lock;
 	report_msg.unk = 0;
 
@@ -224,7 +228,7 @@ void ipc_sms_send_msg(struct ipc_message_info *info)
 
 	LOGD("RECV ack for msg_tpid %d\n", report_msg->msg_tpid);
 
-	ril_ack_err = sms_ack_error_ipc2ril(report_msg->error);
+	ril_ack_err = ipc2ril_sms_ack_error(report_msg->error);
 
 	ril_state.tokens.send_sms = 0;
 

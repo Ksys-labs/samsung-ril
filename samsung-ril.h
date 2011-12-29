@@ -34,10 +34,10 @@
  * Defines
  */
 
-#define RIL_onRequestComplete(t, e, response, responselen) ril_env->OnRequestComplete(t,e, response, responselen)
-#define RIL_onRequestCompleteIfValid(t, e, response, responselen) \
-	if((ril_request_is_valid(t)) \
-		RIL_onRequestComplete(t, e, response, responselen)
+#define RIL_CLIENT_LOCK(client) pthread_mutex_lock(&(client->mutex));
+#define RIL_CLIENT_UNLOCK(client) pthread_mutex_unlock(&(client->mutex));
+
+#define RIL_onRequestCompleteReal(t, e, response, responselen) ril_env->OnRequestComplete(t,e, response, responselen)
 #define RIL_onUnsolicitedResponse(a,b,c) ril_env->OnUnsolicitedResponse(a,b,c)
 #define RIL_requestTimedCallback(a,b,c) ril_env->RequestTimedCallback(a,b,c)
 
@@ -117,7 +117,10 @@ struct ril_request_token {
 int ril_request_id_new(void);
 int ril_request_get_id(RIL_Token token);
 RIL_Token ril_request_get_token(int id);
-int ril_request_is_valid(RIL_Token token);
+int ril_request_get_canceled(RIL_Token token);
+void ril_request_set_canceled(RIL_Token token, int canceled);
+
+void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t responselen);
 
 /**
  * RIL tokens
