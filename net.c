@@ -160,10 +160,7 @@ void ipc2ril_reg_state_resp(struct ipc_net_regist *netinfo, char *response[15])
 	asprintf(&response[0], "%d", reg_state);
 	asprintf(&response[1], "%x", netinfo->lac);
 	asprintf(&response[2], "%x", netinfo->cid);
-	if(act > 0)
-		asprintf(&response[3], "%d", act);
-	else
-		response[3] = NULL;
+	asprintf(&response[3], "%d", act);
 }
 
 /**
