@@ -34,7 +34,8 @@ LOCAL_SRC_FILES := \
 	net.c \
 	sms.c \
 	call.c \
-	snd.c
+	snd.c \
+	gprs.c
 
 LOCAL_SHARED_LIBRARIES := \
 	libcutils libutils libril
@@ -62,7 +63,7 @@ LOCAL_PRELINK_MODULE := false
 ifeq (foo,foo)
 	# build shared library
 	LOCAL_SHARED_LIBRARIES += \
-		libcutils libutils
+		libcutils libnetutils libutils
 	LOCAL_LDLIBS += -lpthread
 	LOCAL_CFLAGS += -DRIL_SHLIB
 	LOCAL_MODULE:= libsamsung-ril

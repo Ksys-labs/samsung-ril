@@ -266,4 +266,9 @@ void ril_request_dtmf_stop(RIL_Token t);
 
 void srs_snd_set_call_clock_sync(struct srs_message *message);
 
+/* GPRS */
+
+void ril_request_setup_data_call(RIL_Token t, void *data, int length);
+void ipc_gprs_ip_configuration(struct ipc_message_info *info);
+
 #endif

@@ -49,6 +49,7 @@
  * - gen phone res queue
  * - SMS ret isn't NULL (tpid)
  * - Android "0" net type (logs)!
+ * - add MIC_MUTE from RILJ
  */
 
 /**
@@ -258,10 +259,13 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 		case IPC_CALL_STATUS:
 			ipc_call_status(info);
 			break;
+		/* GPRS */
+		case IPC_GPRS_IP_CONFIGURATION:
+			ipc_gprs_ip_configuration(info);
+			break;
 		/* OTHER */
-
 		case IPC_GEN_PHONE_RES:
-//			respondGenPhonRes(info);
+			respondGenPhonRes(info);
 			break;
 		default:
 			LOGD("Unknown msgtype: %04x", info->type);
@@ -420,6 +424,10 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_DTMF_STOP:
 			ril_request_dtmf_stop(t);
                        break;
+		/* GPRS */
+		case RIL_REQUEST_SETUP_DATA_CALL:
+			ril_request_setup_data_call(t, data, datalen);
+			break;
 		/* OTHER */
 		case RIL_REQUEST_SCREEN_STATE:
 			/* This doesn't affect anything */
