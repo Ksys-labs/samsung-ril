@@ -110,7 +110,7 @@ void ril_request_dial(RIL_Token t, void *data, size_t datalen)
 
 	call.type = IPC_CALL_TYPE_VOICE;
 	call.identity = clir;
-	call.prefix = IPC_CALL_PREFIX_NONE;
+	call.prefix = dial->address[0] == '+' ? IPC_CALL_PREFIX_INTL : IPC_CALL_PREFIX_NONE;
 
 	call.length = strlen(dial->address);
 	memcpy(call.number, dial->address, strlen(dial->address));
