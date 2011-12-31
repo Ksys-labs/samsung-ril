@@ -33,23 +33,31 @@
 
 /**
  * Samsung-RIL TODO:
+ *
+ * General:
  * - add IPC_NET_SERVING_NETWORK
- * - add RFS NV_DATA functions
- *   libsamsung-ipc: export nv_data functions as common
- * - add data support
- * - stabilize SMS
- * - complete sound handling
  * - USSD codes
  * - full operators list
- * - airplane mode: trace: sys nodes?
  * - ipc_disp_icon_info: trace on RILJ & emulate RIl_REQUEST_SIGNAL_STRENGTH
+ * - airplane mode: trace: sys nodes?
  * - look at /sys nodes for data and airplane
- * - fails at killall zygote?
- * - call with +33
- * - gen phone res queue
- * - SMS ret isn't NULL (tpid)
- * - Android "0" net type (logs)!
+ * - fails at killall zygote? → airplane mode bug?
+ * - gen phone res queue → apply to max functions
+ * 
+ * Call-related:
+ * - complete sound handling
  * - add MIC_MUTE from RILJ
+ * 
+ * SMS-related:
+ * - stabilize SMS
+ * - SMS ret isn't NULL (tpid)
+ *
+ * Data-related:
+ * - find a reliable way to configure data iface
+ * - GPRS: IPC_GPRS_CALL_STATUS, LAST_DATA_CALL_FAIL_CAUSE
+ * - check data with orange non-free ril: no gprs_ip_config
+ * - data: use IPC_GPRS_CALL_STATUS with global token for possible fail or return anyway and store ip config global?
+ * - update global fail cause in global after gprs_call_status, generic error on stored token
  */
 
 /**
@@ -158,21 +166,13 @@ void ril_tokens_check(void)
  * Clients dispatch functions
  */
 
-void respondGenPhonRes(struct ipc_message_info *info)
-{
-	struct ipc_gen_phone_res *gen_res = (struct ipc_gen_phone_res*)info->data;
-	unsigned short msg_type = ((gen_res->group << 8) | gen_res->type);
-
-	if(msg_type == IPC_SEC_PIN_STATUS) {
-		ipc_sec_pin_status_res(info);
-	} else {
-		LOGD("%s: unhandled generic response for msg %04x", __FUNCTION__, msg_type);
-	}
-}
-
 void ipc_fmt_dispatch(struct ipc_message_info *info)
 {
 	switch(IPC_COMMAND(info)) {
+		/* GEN */
+		case IPC_GEN_PHONE_RES:
+			ipc_gen_phone_res(info);
+			break;
 		/* PWR */
 		case IPC_PWR_PHONE_PWR_UP:
 			ipc_pwr_phone_pwr_up();
@@ -263,34 +263,23 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 		case IPC_GPRS_IP_CONFIGURATION:
 			ipc_gprs_ip_configuration(info);
 			break;
-		/* OTHER */
-		case IPC_GEN_PHONE_RES:
-			respondGenPhonRes(info);
-			break;
 		default:
-			LOGD("Unknown msgtype: %04x", info->type);
+			LOGD("Unhandled command: %s (%04x)", ipc_command_to_str(IPC_COMMAND(info)), IPC_COMMAND(info));
 			break;
 	}
 }
 
 void ipc_rfs_dispatch(struct ipc_message_info *info)
 {
-	struct ipc_rfs_io *rfs_io;
-
 	switch(IPC_COMMAND(info)) {
 		case IPC_RFS_NV_READ_ITEM:
-			LOGD("--> IPC_RFS_NV_READ_ITEM");
-			rfs_io = (struct ipc_rfs_io *) info->data;
-
-			LOGD("asking to read 0x%x bytes at offset 0x%x", rfs_io->length, rfs_io->offset);
-
+			ipc_rfs_nv_read_item(info);
 			break;
 		case IPC_RFS_NV_WRITE_ITEM:
-			LOGD("--> IPC_RFS_NV_WRITE_ITEM");
-
-			rfs_io = (struct ipc_rfs_io *) info->data;
-
-			LOGD("asking to write 0x%x bytes at offset 0x%x", rfs_io->length, rfs_io->offset);
+			ipc_rfs_nv_write_item(info);
+			break;
+		default:
+			LOGD("Unhandled command: %s (%04x)", ipc_command_to_str(IPC_COMMAND(info)), IPC_COMMAND(info));
 			break;
 	}
 }
@@ -303,6 +292,9 @@ void srs_dispatch(struct srs_message *message)
 			break;
 		case SRS_SND_SET_CALL_CLOCK_SYNC:
 			srs_snd_set_call_clock_sync(message);
+			break;
+		default:
+			LOGD("Unhandled command: (%04x)", message->command);
 			break;
 	}
 }

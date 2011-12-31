@@ -26,6 +26,7 @@ LOCAL_SRC_FILES := \
 	ipc.c \
 	srs.c \
 	util.c \
+	gen.c \
 	pwr.c \
 	disp.c \
 	misc.c \
@@ -35,7 +36,8 @@ LOCAL_SRC_FILES := \
 	sms.c \
 	call.c \
 	snd.c \
-	gprs.c
+	gprs.c \
+	rfs.c
 
 LOCAL_SHARED_LIBRARIES := \
 	libcutils libutils libril

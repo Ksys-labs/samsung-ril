@@ -92,14 +92,12 @@ int ipc_fmt_read_loop(struct ril_client *client)
 
 		if(FD_ISSET(ipc_client_fd, &fds)) {
 			RIL_CLIENT_LOCK(client);
-			if(ipc_client_recv(ipc_client, &info)) {
+			if(ipc_client_recv(ipc_client, &info) < 0) {
 				RIL_CLIENT_UNLOCK(client);
 				LOGE("IPC FMT recv failed, aborting!");
 				return -1;
 			}
 			RIL_CLIENT_UNLOCK(client);
-
-			LOGD("IPC FMT recv: aseq=0x%x mseq=0x%x data_length=%d\n", info.aseq, info.mseq, info.length);
 
 			ipc_fmt_dispatch(&info);
 
@@ -144,7 +142,7 @@ int ipc_fmt_create(struct ril_client *client)
 		return -1;
 	}
 
-	//FIXME: ipc_client_set_handler
+	// ipc_client_set_handlers
 
 	LOGD("Passing client->object->ipc_client fd as handlers data");
 	rc = ipc_client_set_all_handlers_data(ipc_client, &((struct ipc_client_object *) client->object)->ipc_client_fd);
@@ -227,6 +225,27 @@ int ipc_fmt_destroy(struct ril_client *client)
  * IPC RFS
  */
 
+void ipc_rfs_send(const unsigned short command, unsigned char *data, const int length, unsigned char mseq)
+{
+	struct ipc_client *ipc_client;
+
+	if(ipc_rfs_client == NULL) {
+		LOGE("ipc_rfs_client is null, aborting!");
+		return;
+	}
+
+	if(ipc_rfs_client->object == NULL) {
+		LOGE("ipc_rfs_client object is null, aborting!");
+		return;
+	}
+
+	ipc_client = ((struct ipc_client_object *) ipc_rfs_client->object)->ipc_client;
+
+	RIL_CLIENT_LOCK(ipc_rfs_client);
+	ipc_client_send(ipc_client, command, 0, data, length, mseq);
+	RIL_CLIENT_UNLOCK(ipc_rfs_client);
+}
+
 int ipc_rfs_read_loop(struct ril_client *client)
 {
 	struct ipc_message_info info;
@@ -260,14 +279,12 @@ int ipc_rfs_read_loop(struct ril_client *client)
 
 		if(FD_ISSET(ipc_client_fd, &fds)) {
 			RIL_CLIENT_LOCK(client);
-			if(ipc_client_recv(ipc_client, &info)) {
+			if(ipc_client_recv(ipc_client, &info) < 0) {
 				RIL_CLIENT_UNLOCK(client);
 				LOGE("IPC RFS recv failed, aborting!");
 				return -1;
 			}
 			RIL_CLIENT_UNLOCK(client);
-
-			LOGD("IPC RFS recv: command=%d data_length=%d\n", info.type, info.length);
 
 			ipc_rfs_dispatch(&info);
 
@@ -312,7 +329,7 @@ int ipc_rfs_create(struct ril_client *client)
 		return -1;
 	}
 
-	//FIXME: ipc_client_set_handler
+	// ipc_client_set_handlers
 
 	LOGD("Passing client->object->ipc_client fd as handlers data");
 	rc = ipc_client_set_all_handlers_data(ipc_client, &((struct ipc_client_object *) client->object)->ipc_client_fd);

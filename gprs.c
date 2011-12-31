@@ -36,13 +36,36 @@
 extern void ipc_gprs_define_pdp_context_setup(struct ipc_gprs_define_pdp_context *message, char *apn);
 
 // libnetutils missing prototype
-
 extern int ifc_configure(const char *ifname,
 	in_addr_t address,
 	in_addr_t netmask,
 	in_addr_t gateway,
 	in_addr_t dns1,
 	in_addr_t dns2);
+
+void ipc_gprs_pdp_context_complete(struct ipc_message_info *info)
+{
+	struct ipc_gen_phone_res *phone_res = (struct ipc_gen_phone_res *) info->data;
+	int rc;
+	int aseq;
+
+	rc = ipc_gen_phone_res_check(phone_res);
+	if(rc < 0) {
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
+		LOGE("There was an error, aborting PDP context complete");
+		return;
+	}
+
+	/* We need to get a clean new aseq here */
+	aseq = ril_request_reg_id(reqGetToken(info->aseq));
+
+	/* activate the connection */
+	ipc_fmt_send(IPC_GPRS_PDP_CONTEXT, IPC_TYPE_SET, 
+			(void *) &(ril_state.gprs_context), sizeof(struct ipc_gprs_pdp_context), aseq);
+
+	ipc_gen_phone_res_expect_to_abort(aseq, IPC_GPRS_PDP_CONTEXT);
+	// TODO: if this aborts, last fail cause will be: PDP_FAIL_ERROR_UNSPECIFIED
+}
 
 void ril_request_setup_data_call(RIL_Token t, void *data, int length)
 {
@@ -78,20 +101,15 @@ void ril_request_setup_data_call(RIL_Token t, void *data, int length)
 	/* create the structs with the apn */
 	ipc_gprs_define_pdp_context_setup(&setup_apn_message, apn);
 
+	/* create the structs with the username/password tuple */
+	ipc_gprs_pdp_context_setup(&(ril_state.gprs_context), username, password);
+
 	/* send the struct to the modem */
 	ipc_fmt_send(IPC_GPRS_DEFINE_PDP_CONTEXT, IPC_TYPE_SET, 
 			(void *) &setup_apn_message, sizeof(struct ipc_gprs_define_pdp_context), reqGetId(t));
 
-	//TODO: Wait for IPC_GEN_PHONE_RES, split in 2 functions
-
-	/* create the structs with the username/password tuple */
-	ipc_gprs_pdp_context_setup(&activate_message, username, password);
-
-	/* activate the connection */
-	ipc_fmt_send(IPC_GPRS_PDP_CONTEXT, IPC_TYPE_SET, 
-			(void *) &activate_message, sizeof(struct ipc_gprs_pdp_context), reqGetId(t));
-
-	//TODO: Wait for IPC_GEN_PHONE_RES, only return to RILJ if it fails
+	ipc_gen_phone_res_expect_to_func(reqGetId(t), IPC_GPRS_DEFINE_PDP_CONTEXT,
+		ipc_gprs_pdp_context_complete);
 }
 
 void ipc_gprs_ip_configuration(struct ipc_message_info *info)

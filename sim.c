@@ -327,6 +327,9 @@ void ril_request_enter_sim_pin(RIL_Token t, void *data, size_t datalen)
 
 	ipc_fmt_send_set(IPC_SEC_PIN_STATUS, reqGetId(t), (unsigned char *) &pin_status, sizeof(pin_status));
 
+	ipc_gen_phone_res_expect_to_func(reqGetId(t), IPC_SEC_PIN_STATUS,
+		ipc_sec_pin_status_complete);
+
 	/* 2. Get lock status */
 	memset(buf, 0, sizeof(buf));
 	buf[0] = 1;
@@ -345,7 +348,7 @@ void ril_request_enter_sim_pin(RIL_Token t, void *data, size_t datalen)
  */
 // FIXME: here, we're going to do that:
 // do the pin status req, enqueue the token to gen phone res and use this custom function (dd possibility to use custom functions on return, not only return bare requests complete with dumb RIL_E_)
-void ipc_sec_pin_status_res(struct ipc_message_info *info)
+void ipc_sec_pin_status_complete(struct ipc_message_info *info)
 {
 	struct ipc_gen_phone_res *gen_res = (struct ipc_gen_phone_res *) info->data;
 	int attempts = -1;

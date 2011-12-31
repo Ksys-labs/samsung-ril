@@ -115,6 +115,7 @@ struct ril_request_token {
 };
 
 int ril_request_id_new(void);
+int ril_request_reg_id(RIL_Token token);
 int ril_request_get_id(RIL_Token token);
 RIL_Token ril_request_get_token(int id);
 int ril_request_get_canceled(RIL_Token token);
@@ -177,6 +178,8 @@ struct ril_state {
 	struct ipc_net_regist gprs_netinfo;
 	struct ipc_net_current_plmn plmndata;
 
+	struct ipc_gprs_pdp_context gprs_context;
+
 	unsigned char msg_tpid_lock;
 	char *msg_pdu;
 };
@@ -188,8 +191,25 @@ int ril_modem_check(void);
  * Clients dispatch functions
  */
 
-void ipc_dispatch(struct ipc_message_info *info);
+void ipc_fmt_dispatch(struct ipc_message_info *info);
+void ipc_rfs_dispatch(struct ipc_message_info *info);
+void srs_dispatch(struct srs_message *message);
 
+/* GEN */
+
+struct ipc_gen_phone_res_expect {
+	unsigned char aseq;
+	unsigned short command;
+	void (*func)(struct ipc_message_info *info);
+	int to_complete;
+	int to_abort;
+};
+
+void ipc_gen_phone_res_expect_to_func(unsigned char aseq, unsigned short command, 
+		void (*func)(struct ipc_message_info *info));
+void ipc_gen_phone_res_expect_to_complete(unsigned char aseq, unsigned short command);
+void ipc_gen_phone_res_expect_to_abort(unsigned char aseq, unsigned short command);
+void ipc_gen_phone_res(struct ipc_message_info *info);
 
 /* PWR */
 void ipc_pwr_phone_pwr_up(void);
@@ -222,7 +242,7 @@ void ril_request_sim_status(RIL_Token t);
 void ril_request_sim_io(RIL_Token t, void *data, size_t datalen);
 void ipc_sec_rsim_access(struct ipc_message_info *info);
 void ril_request_enter_sim_pin(RIL_Token t, void *data, size_t datalen);
-void ipc_sec_pin_status_res(struct ipc_message_info *info);
+void ipc_sec_pin_status_complete(struct ipc_message_info *info);
 void ipc_sec_lock_info(struct ipc_message_info *info);
 void ril_request_query_facility_lock(RIL_Token t, void *data, size_t datalen);
 void ipc_sec_phone_lock(struct ipc_message_info *info);
@@ -270,5 +290,10 @@ void srs_snd_set_call_clock_sync(struct srs_message *message);
 
 void ril_request_setup_data_call(RIL_Token t, void *data, int length);
 void ipc_gprs_ip_configuration(struct ipc_message_info *info);
+
+/* RFS */
+
+void ipc_rfs_nv_read_item(struct ipc_message_info *info);
+void ipc_rfs_nv_write_item(struct ipc_message_info *info);
 
 #endif
