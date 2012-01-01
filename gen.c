@@ -24,6 +24,10 @@
 #include "samsung-ril.h"
 #include "util.h"
 
+/**
+ * GEN global vars
+ */
+
 struct ipc_gen_phone_res_expect ipc_gen_phone_res_expects[0x20];
 int ipc_gen_phone_res_id = 0;
 
@@ -45,6 +49,15 @@ int ipc_gen_phone_res_id = 0;
  * send some data to the modem, just liek this:
  * aseq = ril_request_reg_id(reqGetToken(info->aseq));
  */
+
+/**
+ * GEN expects functions
+ */
+
+void ipc_gen_phone_res_expects_init(void)
+{
+	memset(ipc_gen_phone_res_expects, 0, sizeof(struct ipc_gen_phone_res_expect) * 0x20);
+}
 
 int ipc_gen_phone_res_id_new(void)
 {
@@ -107,6 +120,14 @@ void ipc_gen_phone_res_expect_to_abort(unsigned char aseq, unsigned short comman
 	ipc_gen_phone_res_expects[id].to_abort = 1;
 }
 
+/**
+ * GEN dequeue function
+ */
+
+/**
+ * In: IPC_GEN_PHONE_RES
+ *   Check the ipc_gen_phone_res_expects queue and act accordingly
+ */
 void ipc_gen_phone_res(struct ipc_message_info *info)
 {
 	struct ipc_gen_phone_res *phone_res = (struct ipc_gen_phone_res *) info->data;

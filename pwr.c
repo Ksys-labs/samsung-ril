@@ -109,6 +109,7 @@ void ril_request_radio_power(RIL_Token t, void *data, size_t datalen)
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 
 		/* We're not going to get any message to make sure we're in LPM so tell RILJ we're off anyway */
+		ril_globals_init();
 		ril_state_lpm();
 		RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED, NULL, 0);
 	}

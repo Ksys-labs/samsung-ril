@@ -49,8 +49,7 @@
  * - add MIC_MUTE from RILJ
  * 
  * SMS-related:
- * - stabilize SMS
- * - SMS ret isn't NULL (tpid)
+ * - Add support for multiple-messages SMS
  *
  * Data-related:
  * - find a reliable way to configure data iface
@@ -77,6 +76,11 @@ struct ril_state ril_state;
 
 struct ril_request_token ril_requests_tokens[0x100];
 int ril_request_id = 0;
+
+void ril_requests_tokens_init(void)
+{
+	memset(ril_requests_tokens, 0, sizeof(struct ril_request_token) * 0x100);
+}
 
 int ril_request_id_new(void)
 {
@@ -463,9 +467,19 @@ const char *getVersion(void)
  * RIL init function
  */
 
-void ril_state_lpm(void)
+void ril_globals_init(void)
 {
 	memset(&ril_state, 0, sizeof(ril_state));
+	memset(&(ril_state.tokens), 0, sizeof(struct ril_tokens));
+
+	ril_requests_tokens_init();
+	ipc_gen_phone_res_expects_init();
+	ril_request_sms_init();
+	ipc_sms_tpid_queue_init();
+}
+
+void ril_state_lpm(void)
+{
 	ril_state.radio_state = RADIO_STATE_OFF;
 	ril_state.power_mode = POWER_MODE_LPM;
 }
@@ -486,8 +500,8 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
 
 	ril_env = env;
 
+	ril_globals_init();
 	ril_state_lpm();
-	memset(&(ril_state.tokens), 0, sizeof(struct ril_tokens));
 
 ipc_fmt:
 	LOGD("Creating IPC FMT client");
