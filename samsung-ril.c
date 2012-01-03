@@ -35,7 +35,6 @@
  * Samsung-RIL TODO:
  *
  * General:
- * - add IPC_NET_SERVING_NETWORK
  * - USSD codes
  * - full operators list
  * - ipc_disp_icon_info: trace on RILJ & emulate RIl_REQUEST_SIGNAL_STRENGTH
@@ -45,8 +44,7 @@
  * - gen phone res queue → apply to max functions
  * 
  * Call-related:
- * - complete sound handling
- * - add MIC_MUTE from RILJ
+ * - take care of SRS socket 
  * 
  * SMS-related:
  * - Add support for multiple-messages SMS
@@ -297,6 +295,12 @@ void srs_dispatch(struct srs_message *message)
 		case SRS_SND_SET_CALL_CLOCK_SYNC:
 			srs_snd_set_call_clock_sync(message);
 			break;
+		case SRS_SND_SET_CALL_VOLUME:
+			srs_snd_set_call_volume(message);
+			break;
+		case SRS_SND_SET_CALL_AUDIO_PATH:
+			srs_snd_set_call_audio_path(message);
+			break;
 		default:
 			LOGD("Unhandled command: (%04x)", message->command);
 			break;
@@ -424,6 +428,9 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_SETUP_DATA_CALL:
 			ril_request_setup_data_call(t, data, datalen);
 			break;
+		/* SND */
+		case RIL_REQUEST_SET_MUTE:
+			ril_request_set_mute(t, data, datalen);
 		/* OTHER */
 		case RIL_REQUEST_SCREEN_STATE:
 			/* This doesn't affect anything */

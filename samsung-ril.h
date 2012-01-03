@@ -311,7 +311,10 @@ void ril_request_dtmf_stop(RIL_Token t);
 
 /* SND */
 
+void ril_request_set_mute(RIL_Token t, void *data, size_t datalen);
 void srs_snd_set_call_clock_sync(struct srs_message *message);
+void srs_snd_set_call_volume(struct srs_message *message);
+void srs_snd_set_call_audio_path(struct srs_message *message);
 
 /* GPRS */
 
