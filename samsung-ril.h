@@ -306,6 +306,8 @@ void ril_request_get_current_calls(RIL_Token t);
 void ipc_call_list(struct ipc_message_info *info);
 void ril_request_hangup(RIL_Token t);
 void ril_request_answer(RIL_Token t);
+void ril_request_dtmf(RIL_Token t, void *data, int length);
+void ipc_call_burst_dtmf(struct ipc_message_info *info);
 void ril_request_dtmf_start(RIL_Token t, void *data, int length);
 void ril_request_dtmf_stop(RIL_Token t);
 

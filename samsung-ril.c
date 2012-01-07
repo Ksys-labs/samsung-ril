@@ -42,6 +42,7 @@
  * - look at /sys nodes for data and airplane
  * - fails at killall zygote? → airplane mode bug?
  * - gen phone res queue → apply to max functions
+ * - DTMF queue (with burst or start type), with lock
  * 
  * Call-related:
  * - take care of SRS socket 
@@ -261,6 +262,9 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 		case IPC_CALL_STATUS:
 			ipc_call_status(info);
 			break;
+		case IPC_CALL_BURST_DTMF:
+			ipc_call_burst_dtmf(info);
+			break;
 		/* GPRS */
 		case IPC_GPRS_IP_CONFIGURATION:
 			ipc_gprs_ip_configuration(info);
@@ -418,6 +422,9 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_ANSWER:
 			ril_request_answer(t);
 			break;
+		case RIL_REQUEST_DTMF:
+			ril_request_dtmf(t, data, datalen);
+                       break;
 		case RIL_REQUEST_DTMF_START:
 			ril_request_dtmf_start(t, data, datalen);
                        break;

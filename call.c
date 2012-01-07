@@ -225,6 +225,60 @@ void ril_request_answer(RIL_Token t)
 	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0);
 }
 
+/**
+ * In: IPC_CALL_BURST_DTMF
+ *   Send DTMF burst. RILJ only sends 1 DTMF tone to send at a time.
+ * 
+ * Out: IPC_CALL_BURST_DTMF
+ *   It should be possible to send multiple DTMF tones at once in this message.
+ *   First byte should be DTMF tones count.
+ */
+void ril_request_dtmf(RIL_Token t, void *data, int length)
+{
+	struct ipc_call_cont_dtmf cont_dtmf;
+
+	unsigned char *burst;
+	int burst_len;
+
+	unsigned char dtmf_count = 1;
+	int i;
+
+	burst_len = sizeof(struct ipc_call_cont_dtmf) * dtmf_count + 1;
+	burst = malloc(burst_len);
+	memset(burst, 0, burst_len);
+
+	burst[0] = dtmf_count;
+
+	for(i=0 ; i < dtmf_count ; i++) {
+		// Apparently, it's possible to set multiple DTMF tones on this message
+
+		cont_dtmf.state = IPC_CALL_DTMF_STATE_START;
+		cont_dtmf.tone = ((char *) data)[0];
+
+		memcpy(burst + 1 + sizeof(struct ipc_call_cont_dtmf) * i, &cont_dtmf, sizeof(cont_dtmf));
+	}
+
+	ipc_gen_phone_res_expect_to_abort(reqGetId(t), IPC_CALL_BURST_DTMF);
+
+	ipc_fmt_send(IPC_CALL_BURST_DTMF, IPC_TYPE_EXEC, (void *) burst, burst_len, reqGetId(t));
+
+	free(burst);
+}
+
+void ipc_call_burst_dtmf(struct ipc_message_info *info)
+{
+	unsigned char ret = *((unsigned char *) info->data);
+
+	// This apparently should return 1, or perhaps that is the DTMF tones count
+	if(ret == 0) {
+		LOGD("Apparently, something went wrong with DTMF burst");
+
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
+	}
+
+	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, NULL, 0);
+}
+
 void ril_request_dtmf_start(RIL_Token t, void *data, int length)
 {
 	//TODO: Check if there is already a DTMF going on and cancel it if so
@@ -233,7 +287,7 @@ void ril_request_dtmf_start(RIL_Token t, void *data, int length)
 	cont_dtmf.state = IPC_CALL_DTMF_STATE_START;
 	cont_dtmf.tone = ((char *)data)[0];
 
-	ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (unsigned char*)&cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
+	ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (void *) &cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
 
 	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 }
@@ -244,7 +298,7 @@ void ril_request_dtmf_stop(RIL_Token t)
 	cont_dtmf.state = IPC_CALL_DTMF_STATE_STOP;
 	cont_dtmf.tone = 0;
 
-	ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (unsigned char*)&cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
+	ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (void *) &cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
 
 	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 }
