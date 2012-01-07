@@ -36,7 +36,6 @@
  *
  * General:
  * - USSD codes
- * - full operators list
  * - ipc_disp_icon_info: trace on RILJ & emulate RIl_REQUEST_SIGNAL_STRENGTH
  * - airplane mode: trace: sys nodes?
  * - look at /sys nodes for data and airplane

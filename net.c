@@ -25,6 +25,8 @@
 #include "samsung-ril.h"
 #include "util.h"
 
+#include <plmn_list.h>
+
 #define RIL_TOKEN_NET_DATA_WAITING	(RIL_Token) 0xff
 
 /**
@@ -128,26 +130,6 @@ unsigned char ril2ipc_modesel(unsigned char mode)
 }
 
 /**
- * Converts IPC PLMC to Android format
- */
-void ipc2ril_plmn(struct ipc_net_current_plmn *plmndata, char *response[3])
-{
-	char plmn[7];
-
-	memset(plmn, 0, sizeof(plmn));
-
-	memcpy(plmn, plmndata->plmn, 6);
-
-	if(plmn[5] == '#')
-		plmn[5] = '\0'; //FIXME: remove #?
-
-	asprintf(&response[0], "%s", plmn_lookup(plmn));
-	//asprintf(&response[1], "%s", "Voda NL");
-	response[1] = NULL;
-	asprintf(&response[2], "%s", plmn);
-}
-
-/**
  * Converts IPC reg state to Android format
  */
 void ipc2ril_reg_state_resp(struct ipc_net_regist *netinfo, char *response[15])
@@ -206,6 +188,41 @@ int ril_tokens_net_get_data_waiting(void)
 void ril_tokens_net_state_dump(void)
 {
 	LOGD("ril_tokens_net_state_dump:\n\tril_state.tokens.registration_state = 0x%x\n\tril_state.tokens.gprs_registration_state = 0x%x\n\tril_state.tokens.operator = 0x%x\n", ril_state.tokens.registration_state, ril_state.tokens.gprs_registration_state, ril_state.tokens.operator);
+}
+
+
+void ril_plmn_string(struct ipc_net_current_plmn *plmndata, char *response[3])
+{
+	unsigned int mcc, mnc;
+	char plmn[7];
+
+	int plmn_entries;
+	int i;
+
+	memset(plmn, 0, sizeof(plmn));
+	memcpy(plmn, plmndata->plmn, 6);
+
+	if(plmn[5] == '#')
+		plmn[5] = '\0';
+
+	asprintf(&response[2], "%s", plmn);
+
+	sscanf(plmn, "%3u%2u", &mcc, &mnc);
+
+	plmn_entries = sizeof(plmn_list) / sizeof(struct plmn_list_entry);
+
+	LOGD("Found %d plmn records", plmn_entries);
+
+	for(i=0 ; i < plmn_entries ; i++) {
+		if(plmn_list[i].mcc == mcc && plmn_list[i].mnc == mnc) {
+			asprintf(&response[0], "%s", plmn_list[i].operator_short);
+			asprintf(&response[1], "%s", plmn_list[i].operator_long);
+			return;		
+		}
+	}	
+
+	response[0] = NULL;
+	response[1] = NULL;
 }
 
 /**
@@ -275,7 +292,7 @@ void ril_request_operator(RIL_Token t)
 		LOGD("Got RILJ request for UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		ipc2ril_plmn(&(ril_state.plmndata), response);
+		ril_plmn_string(&(ril_state.plmndata), response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -367,7 +384,7 @@ void ipc_net_current_plmn(struct ipc_message_info *message)
 				/* Better keeping it up to date */
 				memcpy(&(ril_state.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
 
-				ipc2ril_plmn(plmndata, response);
+				ril_plmn_string(plmndata, response);
 
 				RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
