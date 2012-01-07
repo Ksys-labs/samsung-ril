@@ -41,10 +41,7 @@
  * - look at /sys nodes for data and airplane
  * - fails at killall zygote? → airplane mode bug?
  * - gen phone res queue → apply to max functions
- * - DTMF queue (with burst or start type), with lock
- * 
- * Call-related:
- * - take care of SRS socket 
+ * - DTMF burst queue + lock, DTMF_START lock
  *
  * Data-related:
  * - find a reliable way to configure data iface
