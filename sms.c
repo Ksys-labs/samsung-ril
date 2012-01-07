@@ -145,8 +145,8 @@ int ril_request_sms_new(void)
 }
 
 int ril_request_sms_add(unsigned char aseq,
-			char *pdu, unsigned char pdu_len, 
-			char *smsc, unsigned char smsc_len)
+			char *pdu, int pdu_len, 
+			char *smsc, int smsc_len)
 {
 	int id = ril_request_sms_new();
 
@@ -231,9 +231,9 @@ void ril_request_send_sms(RIL_Token t, void *data, size_t datalen)
 {
 	const char **request = (char **) data;
 	char *pdu = request[1];
-	int pdu_len = pdu != NULL ? strlen(request[1]) : 0;
+	int pdu_len = pdu != NULL ? strlen(pdu) : 0;
 	char *smsc = request[0];
-	int smsc_len = smsc != NULL ? strlen(request[0]) : 0;
+	int smsc_len = smsc != NULL ? strlen(smsc) : 0;
 
 	if(!ril_request_sms_lock_acquire()) {
 		LOGD("The SMS lock is already taken, adding req to the SMS queue");
@@ -317,9 +317,18 @@ int ril_request_send_sms_next(void)
 void ril_request_send_sms_complete(RIL_Token t, char *pdu, char *smsc)
 {
 	struct ipc_sms_send_msg send_msg;
+	unsigned char send_msg_type = IPC_SMS_MSG_SINGLE;
+	int send_msg_len;
 
 	char *data;
-	char *decoded_pdu;
+	int data_len;
+
+	char *pdu_dec;
+	unsigned char pdu_dec_len;
+
+	int pdu_len;
+	unsigned char smsc_len;
+
 	char *p;
 
 	if(pdu == NULL || smsc == NULL) {
@@ -335,42 +344,104 @@ void ril_request_send_sms_complete(RIL_Token t, char *pdu, char *smsc)
 		return;
 	}
 
-	int pdu_str_len = strlen(pdu);
-	int pdu_len = pdu_str_len / 2;
-	int smsc_len = smsc[0];
-	int send_msg_len = sizeof(struct ipc_sms_send_msg);
+	/* Setting various len vars */
+	pdu_len = strlen(pdu);
 
-	/* Final length of the message */
-	int length = pdu_len + smsc_len + send_msg_len;
+	if(pdu_len / 2 > 0xff) {
+		LOGE("PDU is too large, aborting");
+
+		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+
+		/* Release the lock so we can accept new requests */
+		ril_request_sms_lock_release();
+		/* Now send the next message in the queue if any */
+		ril_request_send_sms_next();
+
+		return;
+	}
+
+	pdu_dec_len = pdu_len / 2;
+	smsc_len = smsc[0];
+	send_msg_len = sizeof(struct ipc_sms_send_msg);
+
+	/* Length of the final message */
+	data_len = pdu_dec_len + smsc_len + send_msg_len;
 
 	LOGD("Sending SMS message!");
 
-	LOGD("length is 0x%x + 0x%x + 0x%x = 0x%x\n", pdu_len, smsc_len, send_msg_len, length);
+	LOGD("data_len is 0x%x + 0x%x + 0x%x = 0x%x\n", pdu_dec_len, smsc_len, send_msg_len, data_len);
 
-	decoded_pdu = malloc(pdu_len);
-	hex2bin(pdu, pdu_str_len, decoded_pdu);
+	pdu_dec = malloc(pdu_dec_len);
+	hex2bin(pdu, pdu_len, pdu_dec);
 
-	data = malloc(length);
+	/* PDU operations */
+	int pdu_tp_da_index = 2;
+	unsigned char pdu_tp_da_len = pdu_dec[pdu_tp_da_index];
+
+	if(pdu_tp_da_len > 0xff / 2) {
+		LOGE("PDU TP-DA Len failed (0x%x)\n", pdu_tp_da_len);
+		goto pdu_end;
+	}
+
+	LOGD("PDU TP-DA Len is 0x%x\n", pdu_tp_da_len);
+
+	int pdu_tp_udh_index = pdu_tp_da_index + pdu_tp_da_len;
+	unsigned char pdu_tp_udh_len = pdu_dec[pdu_tp_udh_index];
+	
+	if(pdu_tp_udh_len > 0xff / 2 || pdu_tp_udh_len < 5) {
+		LOGE("PDU TP-UDH Len failed (0x%x)\n", pdu_tp_udh_len);
+		goto pdu_end;
+	}
+
+	LOGD("PDU TP-UDH Len is 0x%x\n", pdu_tp_udh_len);
+
+	int pdu_tp_udh_num_index = pdu_tp_udh_index + 4;
+	unsigned char pdu_tp_udh_num = pdu_dec[pdu_tp_udh_num_index];
+
+	if(pdu_tp_udh_num > 0xf) {
+		LOGE("PDU TP-UDH Num failed (0x%x)\n", pdu_tp_udh_num);
+		goto pdu_end;
+	}
+
+	int pdu_tp_udh_seq_index = pdu_tp_udh_index + 5;
+	unsigned char pdu_tp_udh_seq = pdu_dec[pdu_tp_udh_seq_index];
+
+	if(pdu_tp_udh_seq > 0xf || pdu_tp_udh_seq > pdu_tp_udh_num) {
+		LOGE("PDU TP-UDH Seq failed (0x%x)\n", pdu_tp_udh_seq);
+		goto pdu_end;
+	}
+
+	LOGD("We are sending message %d on %d\n", pdu_tp_udh_seq, pdu_tp_udh_num);
+
+	if(pdu_tp_udh_num > 1) {
+		LOGD("We are sending a multi-part message!");
+		send_msg_type = IPC_SMS_MSG_MULTIPLE;
+	}
+
+pdu_end:
+	/* Alloc and clean memory for the final message */
+	data = malloc(data_len);
 	memset(&send_msg, 0, sizeof(struct ipc_sms_send_msg));
 
+	/* Fill the IPC structure part of the message */
 	send_msg.type = IPC_SMS_TYPE_OUTGOING;
-	send_msg.msg_type =  IPC_SMS_MSG_SINGLE; //FIXME: decide based on PDU
-	send_msg.length = (unsigned char) length; //FIXME: in case of multiple msg, you need to send total size (pdu_size in logs)
-	send_msg.smsc_len = (unsigned char) smsc_len;
+	send_msg.msg_type =  send_msg_type;
+	send_msg.length = (unsigned char) (pdu_dec_len + smsc_len + 1);
+	send_msg.smsc_len = smsc_len;
 
+	/* Copy the other parts of the message */
 	p = data;
-
 	memcpy(p, &send_msg, send_msg_len);
 	p +=  send_msg_len;
 	memcpy(p, (char *) (smsc + 1), smsc_len);
 	p += smsc_len;
-	memcpy(p, decoded_pdu, pdu_len);
+	memcpy(p, pdu_dec, pdu_dec_len);
 
 	ipc_gen_phone_res_expect_to_func(reqGetId(t), IPC_SMS_SEND_MSG, ipc_sms_send_msg_complete);
 
-	ipc_fmt_send(IPC_SMS_SEND_MSG, IPC_TYPE_EXEC, data, length, reqGetId(t));
+	ipc_fmt_send(IPC_SMS_SEND_MSG, IPC_TYPE_EXEC, data, data_len, reqGetId(t));
 
-	free(decoded_pdu);
+	free(pdu_dec);
 	free(data);
 }
 
@@ -401,7 +472,7 @@ void ipc_sms_svc_center_addr(struct ipc_message_info *info)
 	int id = ril_request_sms_get_id(info->aseq);
 
 	char *pdu;
-	unsigned char pdu_len;
+	int pdu_len;
 
 	if(id < 0) {
 		LOGE("The request wasn't queued, reporting generic error!");
@@ -424,7 +495,7 @@ void ipc_sms_svc_center_addr(struct ipc_message_info *info)
 	/* We need to clear here to prevent infinite loop, but we can't free mem yet */
 	ril_request_sms_clear(id);
 
-	ril_request_send_sms_complete(reqGetToken(info->aseq), pdu, info->data);
+	ril_request_send_sms_complete(reqGetToken(info->aseq), pdu, (char *) info->data);
 
 	/* Now it is safe to free mem */
 	if(pdu != NULL)
@@ -552,14 +623,12 @@ int ipc_sms_tpid_queue_get_next(void)
 void ipc_sms_incoming_msg(struct ipc_message_info *info)
 {
 	struct ipc_sms_incoming_msg *msg = (struct ipc_sms_incoming_msg *) info->data;
-	unsigned char *pdu = ((unsigned char *) info->data + sizeof(struct ipc_sms_incoming_msg));
+	char *pdu = ((char *) info->data + sizeof(struct ipc_sms_incoming_msg));
 
 	int resp_length = msg->length * 2 + 1;
 	char *resp = (char *) malloc(resp_length);
 
 	bin2hex(pdu, msg->length, resp);
-
-	LOGD("PDU string is '%s'\n", resp);
 
 	ipc_sms_tpid_queue_add(msg->msg_tpid);
 

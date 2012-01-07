@@ -45,9 +45,6 @@
  * 
  * Call-related:
  * - take care of SRS socket 
- * 
- * SMS-related:
- * - Add support for multiple-messages SMS
  *
  * Data-related:
  * - find a reliable way to configure data iface

@@ -261,9 +261,9 @@ void ipc_net_mode_sel(struct ipc_message_info *info);
 /* SMS */
 struct ril_request_sms {
 	char *pdu;
-	unsigned char pdu_len;
+	int pdu_len;
 	char *smsc;
-	unsigned char smsc_len;
+	int smsc_len;
 
 	unsigned char aseq;
 };
@@ -272,8 +272,8 @@ void ril_request_sms_init(void);
 void ril_request_sms_del(int id);
 void ril_request_sms_clear(int id);
 int ril_request_sms_add(unsigned char aseq,
-			char *pdu, unsigned char pdu_len, 
-			char *smsc, unsigned char smsc_len);
+			char *pdu, int pdu_len, 
+			char *smsc, int smsc_len);
 int ril_request_sms_get_id(unsigned char aseq);
 int ril_request_sms_get_next(void);
 int ril_request_sms_lock_acquire(void);
