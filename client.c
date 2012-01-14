@@ -75,6 +75,8 @@ int ril_client_create(struct ril_client *client)
 			LOGD("RIL client inners creation failed!");
 		else
 			break;
+
+		usleep(500000);
 	}
 
 	if(c == 0) {
@@ -101,6 +103,8 @@ int ril_client_destroy(struct ril_client *client)
 			LOGD("RIL client inners destroying failed!");
 		else
 			break;
+
+		usleep(500000);
 	}
 
 	if(c == 0) {

@@ -144,14 +144,13 @@ int ipc_fmt_create(struct ril_client *client)
 
 	// ipc_client_set_handlers
 
-	LOGD("Passing client->object->ipc_client fd as handlers data");
-	rc = ipc_client_set_all_handlers_data(ipc_client, &((struct ipc_client_object *) client->object)->ipc_client_fd);
+	LOGD("Creating handlers common data");
+	rc = ipc_client_create_handlers_common_data(ipc_client);
 
 	if(rc < 0) {
-		LOGE("ipc_client_fd as handlers data failed!");
+		LOGE("Creating handlers common data failed!");
 		return -1;
 	}
-
 
 	LOGD("Starting modem bootstrap");
 	rc = ipc_client_bootstrap_modem(ipc_client);
@@ -167,7 +166,9 @@ int ipc_fmt_create(struct ril_client *client)
 		return -1;
 	}
 
-	ipc_client_fd = ((struct ipc_client_object *) client->object)->ipc_client_fd;
+	LOGD("Obtaining ipc_client_fd");
+	ipc_client_fd = ipc_client_get_handlers_common_data_fd(ipc_client);
+	client_object->ipc_client_fd = ipc_client_fd;
 
 	if(ipc_client_fd < 0) {
 		LOGE("%s: client_fmt_fd is negative, aborting", __FUNCTION__);
@@ -211,6 +212,7 @@ int ipc_fmt_destroy(struct ril_client *client)
 	ipc_client = ((struct ipc_client_object *) client->object)->ipc_client;
 
 	if(ipc_client != NULL) {
+		ipc_client_destroy_handlers_common_data(ipc_client);
 		ipc_client_power_off(ipc_client);
 		ipc_client_close(ipc_client);
 		ipc_client_free(ipc_client);
@@ -331,11 +333,11 @@ int ipc_rfs_create(struct ril_client *client)
 
 	// ipc_client_set_handlers
 
-	LOGD("Passing client->object->ipc_client fd as handlers data");
-	rc = ipc_client_set_all_handlers_data(ipc_client, &((struct ipc_client_object *) client->object)->ipc_client_fd);
+	LOGD("Creating handlers common data");
+	rc = ipc_client_create_handlers_common_data(ipc_client);
 
 	if(rc < 0) {
-		LOGE("ipc_client_fd as handlers data failed!");
+		LOGE("Creating handlers common data failed!");
 		return -1;
 	}
 
@@ -345,7 +347,9 @@ int ipc_rfs_create(struct ril_client *client)
 		return -1;
 	}
 
-	ipc_client_fd = ((struct ipc_client_object *) client->object)->ipc_client_fd;
+	LOGD("Obtaining ipc_client_fd");
+	ipc_client_fd = ipc_client_get_handlers_common_data_fd(ipc_client);
+	client_object->ipc_client_fd = ipc_client_fd;
 
 	if(ipc_client_fd < 0) {
 		LOGE("%s: client_rfs_fd is negative, aborting", __FUNCTION__);
@@ -384,6 +388,7 @@ int ipc_rfs_destroy(struct ril_client *client)
 	ipc_client = ((struct ipc_client_object *) client->object)->ipc_client;
 
 	if(ipc_client != NULL) {
+		ipc_client_destroy_handlers_common_data(ipc_client);
 		ipc_client_close(ipc_client);
 		ipc_client_free(ipc_client);
 	}
