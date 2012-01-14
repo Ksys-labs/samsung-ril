@@ -24,6 +24,7 @@
 
 #define LOG_TAG "RIL-GPRS"
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
 #include "samsung-ril.h"
 #include "util.h"
@@ -124,6 +125,9 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 	char dns1[IP_STRING_SIZE];
 	char dns2[IP_STRING_SIZE];
 
+	char dns_prop_name[PROPERTY_KEY_MAX];
+	char gw_prop_name[PROPERTY_KEY_MAX];
+
 	char *response[3];
 	int rc;
 
@@ -151,6 +155,13 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 			inet_addr(dns1),
 			inet_addr(dns2));
         LOGD("ifc_configure: %d",rc);
+
+	snprintf(dns_prop_name, sizeof(dns_prop_name), "net.%s.dns1", INTERFACE);
+	property_set(dns_prop_name, dns1);
+	snprintf(dns_prop_name, sizeof(dns_prop_name), "net.%s.dns2", INTERFACE);
+	property_set(dns_prop_name, dns2);
+	snprintf(gw_prop_name, sizeof(gw_prop_name), "net.%s.gw", INTERFACE);
+	property_set(dns_prop_name, gateway);
 
 	response[0] = "0"; //FIXME: connection id
 	response[1] = INTERFACE;
