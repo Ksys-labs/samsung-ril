@@ -169,3 +169,16 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 
 	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, response, sizeof(response));
 }
+
+void ril_request_deactivate_data_call(RIL_Token t, void *data, int length)
+{
+	struct ipc_gprs_pdp_context deactivate_message;
+	memset(&deactivate_message, 0, sizeof(deactivate_message));
+	deactivate_message.unk0[1]=1;
+
+	/* send the struct to the modem */
+	ipc_fmt_send(IPC_GPRS_PDP_CONTEXT, IPC_TYPE_SET, 
+			(void *) &deactivate_message, sizeof(struct ipc_gprs_pdp_context), reqGetId(t));
+
+	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+}

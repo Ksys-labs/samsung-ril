@@ -428,6 +428,9 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_SETUP_DATA_CALL:
 			ril_request_setup_data_call(t, data, datalen);
 			break;
+		case RIL_REQUEST_DEACTIVATE_DATA_CALL:
+			ril_request_deactivate_data_call(t, data, datalen);
+			break;
 		/* SND */
 		case RIL_REQUEST_SET_MUTE:
 			ril_request_set_mute(t, data, datalen);
