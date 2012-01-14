@@ -131,11 +131,10 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 	snprintf(local_ip, IP_STRING_SIZE, "%i.%i.%i.%i",(ip_config->ip)[0],(ip_config->ip)[1],
 						(ip_config->ip)[2],(ip_config->ip)[3]);
 
-        snprintf(gateway, IP_STRING_SIZE, "%i.%i.%i.%i",(ip_config->gateway)[0],(ip_config->gateway)[1],
-                                                (ip_config->gateway)[2],(ip_config->gateway)[3]);
+        snprintf(gateway, IP_STRING_SIZE, "%i.%i.%i.%i",(ip_config->ip)[0],(ip_config->ip)[1],
+                                                (ip_config->ip)[2],(ip_config->ip)[3]);
 
-        snprintf(subnet_mask, IP_STRING_SIZE, "%i.%i.%i.%i",(ip_config->subnet_mask)[0],(ip_config->subnet_mask)[1],
-                                                (ip_config->subnet_mask)[2],(ip_config->subnet_mask)[3]);
+        snprintf(subnet_mask, IP_STRING_SIZE, "255.255.255.255");
 
         snprintf(dns1, IP_STRING_SIZE, "%i.%i.%i.%i",(ip_config->dns1)[0],(ip_config->dns1)[1],
                                                 (ip_config->dns1)[2],(ip_config->dns1)[3]);
@@ -145,15 +144,13 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 
         LOGD("GPRS configuration: ip:%s, gateway:%s, subnet_mask:%s, dns1:%s, dns2:%s",
 							local_ip, gateway, subnet_mask ,dns1, dns2);
-
 	rc = ifc_configure(INTERFACE, 
 			inet_addr(local_ip),
 			inet_addr(subnet_mask),
 			inet_addr(gateway),
 			inet_addr(dns1),
 			inet_addr(dns2));
-
-	// FIXME: check rc
+        LOGD("ifc_configure: %d",rc);
 
 	response[0] = "0"; //FIXME: connection id
 	response[1] = INTERFACE;
