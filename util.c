@@ -84,6 +84,85 @@ void bin2hex(const unsigned char *data, int length, char *buf)
 	*p = '\0';
 }
 
+/**
+ * Converts GSM7 (8 bits) data to ASCII (7 bits)
+ */
+int gsm72ascii(unsigned char *data, char **data_dec, int length)
+{
+	int t, u, d, o = 0;
+	int i;
+
+	int dec_length;
+	char *dec;
+
+	dec_length = ((length * 8) - ((length * 8) % 7) ) / 7;
+	dec = malloc(dec_length);
+
+	memset(dec, 0, dec_length);
+
+	for(i=0 ; i < length ; i++)
+	{
+		d = 7 - i % 7;
+		if(d == 7 && i != 0)
+			o++;
+
+		t = (data[i] - (((data[i] >> d) & 0xff) << d));
+		u = (data[i] >> d) & 0xff;
+
+		dec[i+o]+=t << (i + o) % 8;
+
+		if(u)
+			dec[i+1+o]+=u;
+	}
+
+	*data_dec = dec;
+	
+	return dec_length;
+}
+
+/**
+ * Converts ASCII (7 bits) data to GSM7 (8 bits)
+ */
+int ascii2gsm7(char *data, unsigned char **data_enc, int length)
+{
+	int d_off, d_pos, a_off, a_pos = 0;
+	int i;
+
+	int enc_length;
+	unsigned char *enc;
+
+	enc_length = ((length * 7) - (length * 7) % 8) / 8;
+	enc_length += (length * 7) % 8 > 0 ? 1 : 0;
+
+	enc = malloc(enc_length);
+	memset(enc, 0, enc_length);
+
+	for(i=0 ; i < length ; i++)
+	{
+		// offset from the right of data to keep
+		d_off = i % 8;
+
+		// position of the data we keep
+		d_pos = ((i * 7) - (i * 7) % 8) / 8;
+		d_pos += (i * 7) % 8 > 0 ? 1 : 0;
+
+		// adding the data with correct offset
+		enc[d_pos] |= data[i] >> d_off;
+
+		// numbers of bits to omit to get data to add another place
+		a_off = 8 - d_off;
+		// position (on the encoded feed) of the data to add
+		a_pos = d_pos - 1;
+
+		// adding the data to add at the correct position
+		enc[a_pos] |= data[i] << a_off;
+	}
+
+	*data_enc = enc;
+	
+	return enc_length;
+}
+
 void hex_dump(void *data, int size)
 {
 	/* dumps size bytes of *data to stdout. Looks like:
