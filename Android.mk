@@ -48,8 +48,20 @@ LOCAL_STATIC_LIBRARIES := libsamsung-ipc
 LOCAL_CFLAGS := -D_GNU_SOURCE
 
 ifeq ($(TARGET_DEVICE),crespo)
-	LOCAL_CFLAGS += -DDEVICE_CRESPO
+	LOCAL_CFLAGS += -DDEVICE_IPC_V4
+	samsung-ipc_device := crespo
 endif
+
+ifeq ($(TARGET_DEVICE),galaxysmtd)
+	LOCAL_CFLAGS += -DDEVICE_IPC_V4
+	samsung-ipc_device := aries
+endif
+
+ifeq ($(TARGET_DEVICE),galaxytab)
+	LOCAL_CFLAGS += -DDEVICE_IPC_V4
+	samsung-ipc_device := aries
+endif
+
 ifeq ($(TARGET_DEVICE),h1)
 	LOCAL_CFLAGS += -DDEVICE_H1
 endif
