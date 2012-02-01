@@ -161,7 +161,9 @@ int ipc_fmt_create(struct ril_client *client)
 	}
 
 	LOGD("Client open...");
-	if(ipc_client_open(ipc_client)) {
+	rc = ipc_client_open(ipc_client);
+
+	if(rc < 0) {
 		LOGE("%s: failed to open ipc client", __FUNCTION__);
 		return -1;
 	}
@@ -342,7 +344,9 @@ int ipc_rfs_create(struct ril_client *client)
 	}
 
 	LOGD("Client open...");
-	if(ipc_client_open(ipc_client)) {
+	rc = ipc_client_open(ipc_client);
+
+	if(rc < 0) {
 		LOGE("%s: failed to open ipc client", __FUNCTION__);
 		return -1;
 	}
