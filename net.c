@@ -447,7 +447,7 @@ void ril_request_registration_state(RIL_Token t)
 		/* Request data to the modem */
 		ril_state.tokens.registration_state = t;
 
-		ipc_net_regist_get(&regist_req, IPC_NET_SERVICE_DOMAIN_GSM);
+		ipc_net_regist_setup(&regist_req, IPC_NET_SERVICE_DOMAIN_GSM);
 		ipc_fmt_send(IPC_NET_REGIST, IPC_TYPE_GET, (void *)&regist_req, sizeof(struct ipc_net_regist_get), reqGetId(t));
 	} else {
 		LOGE("Another request is going on, returning UNSOL data");
@@ -500,7 +500,7 @@ void ril_request_gprs_registration_state(RIL_Token t)
 		/* Request data to the modem */
 		ril_state.tokens.gprs_registration_state = t;
 
-		ipc_net_regist_get(&regist_req, IPC_NET_SERVICE_DOMAIN_GPRS);
+		ipc_net_regist_setup(&regist_req, IPC_NET_SERVICE_DOMAIN_GPRS);
 		ipc_fmt_send(IPC_NET_REGIST, IPC_TYPE_GET, (void *)&regist_req, sizeof(struct ipc_net_regist_get), reqGetId(t));
 	} else {
 		LOGE("Another request is going on, returning UNSOL data");
