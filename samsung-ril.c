@@ -36,6 +36,7 @@
  *
  * General:
  * - USSD codes
+ * - SIM SMS I/O
  * - ipc_disp_icon_info: trace on RILJ & emulate RIl_REQUEST_SIGNAL_STRENGTH
  * - airplane mode: trace: sys nodes?
  * - look at /sys nodes for data and airplane
@@ -203,6 +204,10 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 		case IPC_SAT_ENVELOPE_CMD:
 			respondSatEnvelopeCmd(info);
 			break;
+		/* SS */
+		case IPC_SS_USSD:
+			ipc_ss_ussd(info);
+			break;
 		/* SIM */
 		case IPC_SEC_PIN_STATUS:
 			ipc_sec_pin_status(info);
@@ -352,6 +357,12 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM:
 			RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 			break;
+		/* SS */
+		case RIL_REQUEST_SEND_USSD:
+			ril_request_send_ussd(t, data, datalen);
+			break;
+		case RIL_REQUEST_CANCEL_USSD:
+			ril_request_cancel_ussd(t, data, datalen);
 		/* SIM */
 		case RIL_REQUEST_GET_SIM_STATUS:
 			ril_request_sim_status(t);

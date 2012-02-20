@@ -23,6 +23,8 @@
 
 void bin2hex(const unsigned char *data, int length, char *buf);
 void hex2bin(const char *data, int length, unsigned char *buf);
+int gsm72ascii(unsigned char *data, char **data_dec, int length);
+int ascii2gsm7(char *data, unsigned char **data_enc, int length);
 void hex_dump(void *data, int size);
 
 #endif

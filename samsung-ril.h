@@ -177,6 +177,8 @@ struct ril_state {
 	struct ipc_net_current_plmn plmndata;
 
 	struct ipc_gprs_pdp_context gprs_context;
+
+	unsigned char ussd_state;
 };
 
 void ril_globals_init(void);
@@ -232,6 +234,12 @@ void respondSatProactiveCmd(struct ipc_message_info *request);
 void requestSatSendTerminalResponse(RIL_Token t, void *data, size_t datalen);
 void requestSatSendEnvelopeCommand(RIL_Token t, void *data, size_t datalen);
 void respondSatEnvelopeCmd(struct ipc_message_info *request);
+
+/* SS */
+
+void ril_request_send_ussd(RIL_Token t, void *data, size_t datalen);
+void ril_request_cancel_ussd(RIL_Token t, void *data, size_t datalen);
+void ipc_ss_ussd(struct ipc_message_info *info);
 
 /* SIM */
 void ipc_sec_pin_status(struct ipc_message_info *info);

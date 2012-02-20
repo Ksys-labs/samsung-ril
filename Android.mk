@@ -31,6 +31,7 @@ LOCAL_SRC_FILES := \
 	disp.c \
 	misc.c \
 	sat.c \
+	ss.c \
 	sim.c \
 	net.c \
 	sms.c \
