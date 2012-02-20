@@ -191,7 +191,7 @@ void ril_tokens_net_state_dump(void)
 }
 
 
-void ril_plmn_string(struct ipc_net_current_plmn *plmndata, char *response[3])
+void ril_plmn_string(char *plmn_data, char *response[3])
 {
 	unsigned int mcc, mnc;
 	char plmn[7];
@@ -200,7 +200,7 @@ void ril_plmn_string(struct ipc_net_current_plmn *plmndata, char *response[3])
 	int i;
 
 	memset(plmn, 0, sizeof(plmn));
-	memcpy(plmn, plmndata->plmn, 6);
+	memcpy(plmn, plmn_data, 6);
 
 	if(plmn[5] == '#')
 		plmn[5] = '\0';
@@ -292,7 +292,7 @@ void ril_request_operator(RIL_Token t)
 		LOGD("Got RILJ request for UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		ril_plmn_string(&(ril_state.plmndata), response);
+		ril_plmn_string(ril_state.plmndata.plmn, response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -312,7 +312,7 @@ void ril_request_operator(RIL_Token t)
 		LOGE("Another request is going on, returning UNSOL data");
 
 		/* Send back the data we got UNSOL */
-		ril_plmn_string(&(ril_state.plmndata), response);
+		ril_plmn_string(ril_state.plmndata.plmn, response);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -393,7 +393,7 @@ void ipc_net_current_plmn(struct ipc_message_info *message)
 				/* Better keeping it up to date */
 				memcpy(&(ril_state.plmndata), plmndata, sizeof(struct ipc_net_current_plmn));
 
-				ril_plmn_string(plmndata, response);
+				ril_plmn_string(plmndata->plmn, response);
 
 				RIL_onRequestComplete(t, RIL_E_SUCCESS, response, sizeof(response));
 
@@ -684,20 +684,7 @@ void ipc_net_plmn_list(struct ipc_message_info *info)
 		if(entries[i].type == 0x01)
 			continue;
 
-		char *plmn = plmn_string(entries[i].plmn);
-
-		LOGD("PLMN #%d: %s (%s)\n", i, plmn_lookup(plmn), plmn);
-
-		/* Long (E)ONS */
-		asprintf(&resp_ptr[0], "%s", plmn_lookup(plmn));
-
-		/* Short (E)ONS - FIXME: real short EONS */
-		asprintf(&resp_ptr[1], "%s", plmn_lookup(plmn));
-
-		/* PLMN */
-		asprintf(&resp_ptr[2], "%s", plmn);
-
-		free(plmn);
+		ril_plmn_string(entries[i].plmn, resp_ptr);
 
 		/* PLMN status */
 		switch(entries[i].status) {
