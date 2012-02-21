@@ -231,6 +231,9 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 		case IPC_NET_PLMN_LIST:
 			ipc_net_plmn_list(info);
 			break;
+		case IPC_NET_PLMN_SEL:
+			ipc_net_plmn_sel(info);
+			break;
 		case IPC_NET_MODE_SEL:
 			ipc_net_mode_sel(info);
 			break;
@@ -392,14 +395,20 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS:
 			ril_request_query_available_networks(t);
 			break;
-		case RIL_REQUEST_QUERY_NETWORK_SELECTION_MODE:
-			ril_request_query_network_selection_mode(t);
-			break;
 		case RIL_REQUEST_GET_PREFERRED_NETWORK_TYPE:
 			ril_request_get_preferred_network_type(t);
 			break;
 		case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE:
 			ril_request_set_preferred_network_type(t, data, datalen);
+			break;
+		case RIL_REQUEST_QUERY_NETWORK_SELECTION_MODE:
+			ril_request_query_network_selection_mode(t);
+			break;
+		case RIL_REQUEST_SET_NETWORK_SELECTION_AUTOMATIC:
+			ril_request_set_network_selection_automatic(t);
+			break;
+		case RIL_REQUEST_SET_NETWORK_SELECTION_MANUAL:
+			ril_request_set_network_selection_manual(t, data, datalen);
 			break;
 		/* SMS */
 		case RIL_REQUEST_SEND_SMS:

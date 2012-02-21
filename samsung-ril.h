@@ -127,7 +127,6 @@ void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t resp
  * RIL tokens
  */
 
-// FIXME: Move RIL_Token token_ps, token_cs; here
 struct ril_tokens {
 	RIL_Token radio_power;
 	RIL_Token get_imei;
@@ -254,6 +253,9 @@ void ipc_sec_phone_lock(struct ipc_message_info *info);
 void ril_request_set_facility_lock(RIL_Token t, void *data, size_t datalen);
 
 /* NET */
+void ril_plmn_split(char *plmn_data, char **plmn, unsigned int *mcc, unsigned int *mnc);
+void ril_plmn_string(char *plmn_data, char *response[3]);
+unsigned char ril_plmn_act_get(char *plmn_data);
 void ril_request_operator(RIL_Token t);
 void ipc_net_current_plmn(struct ipc_message_info *message);
 void ril_request_registration_state(RIL_Token t);
@@ -261,10 +263,13 @@ void ril_request_gprs_registration_state(RIL_Token t);
 void ipc_net_regist(struct ipc_message_info *message);
 void ril_request_query_available_networks(RIL_Token t);
 void ipc_net_plmn_list(struct ipc_message_info *info);
-void ril_request_query_network_selection_mode(RIL_Token t);
 void ril_request_get_preferred_network_type(RIL_Token t);
 void ril_request_set_preferred_network_type(RIL_Token t, void *data, size_t datalen);
 void ipc_net_mode_sel(struct ipc_message_info *info);
+void ril_request_query_network_selection_mode(RIL_Token t);
+void ipc_net_plmn_sel(struct ipc_message_info *info);
+void ril_request_set_network_selection_automatic(RIL_Token t);
+void ril_request_set_network_selection_manual(RIL_Token t, void *data, size_t datalen);
 
 /* SMS */
 struct ril_request_sms {
