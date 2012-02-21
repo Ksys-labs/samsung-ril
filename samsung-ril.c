@@ -399,7 +399,7 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 			ril_request_get_preferred_network_type(t);
 			break;
 		case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE:
-			ril_request_set_preffered_network_type(t, data, datalen);
+			ril_request_set_preferred_network_type(t, data, datalen);
 			break;
 		/* SMS */
 		case RIL_REQUEST_SEND_SMS:

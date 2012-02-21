@@ -102,12 +102,12 @@ unsigned char ipc2ril_modesel(unsigned char mode)
 {
 	switch(mode) {
 		case 0:
-			return 7;
-		case 1:
-		case 3:
+			return 7; // auto mode
+		case IPC_NET_MODE_GSM_UMTS:
+			return 0;
+		case IPC_NET_MODE_GSM_ONLY:
 			return 1;
-		case 2:
-		case 4:
+		case IPC_NET_MODE_UMTS_ONLY:
 			return 2;
 		default:
 			return 255;
@@ -120,12 +120,13 @@ unsigned char ipc2ril_modesel(unsigned char mode)
 unsigned char ril2ipc_modesel(unsigned char mode)
 {
 	switch(mode) {
-		case 1:
-			return 2;
-		case 2:
-			return 3;
-		default:
-			return 1;
+		case 1: // GSM only
+			return IPC_NET_MODE_GSM_ONLY;
+		case 2: // WCDMA only
+			return IPC_NET_MODE_UMTS_ONLY;
+		case 0:
+		default: // GSM/WCDMA + the rest
+			return IPC_NET_MODE_GSM_UMTS;
 	}
 }
 
@@ -719,23 +720,27 @@ void ril_request_query_network_selection_mode(RIL_Token t)
 	RIL_onRequestComplete(t, RIL_E_SUCCESS, &mode, sizeof(mode));
 }
 
+void ril_request_set_preferred_network_type(RIL_Token t, void *data, size_t datalen)
+{
+	int ril_mode = *(int*)data;
+	struct ipc_net_mode_sel mode_sel;
+
+	mode_sel->mode = ril2ipc_modesel(ril_mode);
+
+	ipc_gen_phone_res_expect_to_complete(reqGetId(t), IPC_NET_MODE_SEL);
+
+	ipc_fmt_send(IPC_NET_MODE_SEL, IPC_TYPE_SET, &mode_sel, sizeof(mode_sel), reqGetId(t));
+}
+
 void ril_request_get_preferred_network_type(RIL_Token t)
 {
 	ipc_fmt_send_get(IPC_NET_MODE_SEL, reqGetId(t));
 }
 
-void ril_request_set_preffered_network_type(RIL_Token t, void *data, size_t datalen)
-{
-	int ril_mode = *(int*)data;
-	unsigned char ipc_mode = ril2ipc_modesel(ril_mode);
-
-	ipc_fmt_send(IPC_NET_MODE_SEL, IPC_TYPE_SET, &ipc_mode, sizeof(ipc_mode), reqGetId(t));
-}
-
 void ipc_net_mode_sel(struct ipc_message_info *info)
 {
-	unsigned char ipc_mode = *(unsigned char *) info->data;
-	int ril_mode = ipc2ril_modesel(ipc_mode);
+	struct ipc_net_mode_sel *mode_sel = (struct ipc_net_mode_sel *) info->data;
+	int ril_mode = ipc2ril_modesel(mode_sel->mode);
 
-	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ril_mode, sizeof(int*));
+	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ril_mode, sizeof(int));
 }
