@@ -35,12 +35,8 @@
  * Samsung-RIL TODO:
  *
  * General:
- * - USSD codes
  * - SIM SMS I/O
  * - ipc_disp_icon_info: trace on RILJ & emulate RIl_REQUEST_SIGNAL_STRENGTH
- * - airplane mode: trace: sys nodes?
- * - look at /sys nodes for data and airplane
- * - fails at killall zygote? → airplane mode bug?
  * - gen phone res queue → apply to max functions
  * - DTMF burst queue + lock, DTMF_START lock
  *
