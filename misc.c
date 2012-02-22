@@ -25,24 +25,58 @@
 #include "samsung-ril.h"
 #include "util.h"
 
-// FIXME: there was a problem with IMEI handling *think hard*
+void ril_request_get_imei_send(RIL_Token t)
+{
+	unsigned char data;
+
+	data = IPC_MISC_ME_SN_SERIAL_NUM;
+	ipc_fmt_send(IPC_MISC_ME_SN, IPC_TYPE_GET, (unsigned char *) &data, sizeof(data), reqGetId(t));
+}
 
 void ril_request_get_imei(RIL_Token t)
 {
-	char data;
+	if(ril_state.tokens.get_imei) {
+		LOGD("Another IMEI request is waiting, aborting");
+		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+		return;
+	}
 
-	if(ril_state.radio_state != RADIO_STATE_OFF) {
-		data = IPC_MISC_ME_SN_SERIAL_NUM;
+	ril_state.tokens.get_imei = t;
 
-		ipc_fmt_send(IPC_MISC_ME_SN, IPC_TYPE_GET, (unsigned char *) &data, sizeof(data), reqGetId(t));
+	if(ril_state.tokens.get_imeisv) {
+		LOGD("IMEISV token found: 0x%x", ril_state.tokens.get_imeisv);
+
+		if(ril_state.radio_state != RADIO_STATE_OFF) {
+			ril_request_get_imei_send(ril_state.tokens.get_imei);
+		} else {
+			LOGD("Radio is off, waiting");
+		}
 	} else {
-		ril_state.tokens.get_imei = t;
+		LOGD("Waiting for IMEISV token");
 	}
 }
 
 void ril_request_get_imeisv(RIL_Token t)
 {
+	if(ril_state.tokens.get_imeisv) {
+		LOGD("Another IMEISV request is waiting, aborting");
+		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+		return;
+	}
+
 	ril_state.tokens.get_imeisv = t;
+
+	if(ril_state.tokens.get_imei) {
+		LOGD("IMEI token found: 0x%x", ril_state.tokens.get_imei);
+
+		if(ril_state.radio_state != RADIO_STATE_OFF) {
+			ril_request_get_imei_send(ril_state.tokens.get_imei);
+		} else {
+			LOGD("Radio is off, waiting");
+		}
+	} else {
+		LOGD("Waiting for IMEI token");
+	}
 }
 
 void ipc_misc_me_sn_imei(RIL_Token t, void *data, int length)
@@ -53,7 +87,7 @@ void ipc_misc_me_sn_imei(RIL_Token t, void *data, int length)
 
 	imei_info = (struct ipc_misc_me_sn *) data;
 
-	if(ril_state.tokens.get_imei != 0 && ril_state.tokens.get_imei != t) 
+	if(ril_state.tokens.get_imei != t) 
 		LOGE("IMEI tokens mismatch");
 
 	if(imei_info->length > 32)
@@ -64,15 +98,22 @@ void ipc_misc_me_sn_imei(RIL_Token t, void *data, int length)
 
 	memcpy(imei, imei_info->data, imei_info->length);
 
-	/* Last two bytes of IMEI in imei_info are the SV bytes */
+	// Last two bytes of IMEI in imei_info are the SV bytes
 	memcpy(imeisv, (imei_info->data + imei_info->length - 2), 2);
 
-	/* IMEI */
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, imei, sizeof(char *));
-	ril_state.tokens.get_imei = 0;
+	// In case of token mismatch, complete both requests
+	if(t && ril_state.tokens.get_imei != t) {
+		RIL_onRequestComplete(t, RIL_E_SUCCESS, imei, sizeof(char *));
+	}
 
-	/* IMEI SV */
-	if(ril_state.tokens.get_imeisv != 0) {
+	// IMEI
+	if(ril_state.tokens.get_imei) {
+		RIL_onRequestComplete(ril_state.tokens.get_imei, RIL_E_SUCCESS, imei, sizeof(char *));
+		ril_state.tokens.get_imei = 0;
+	}
+
+	// IMEI SV
+	if(ril_state.tokens.get_imeisv) {
 		RIL_onRequestComplete(ril_state.tokens.get_imeisv, RIL_E_SUCCESS, imeisv, sizeof(char *));
 		ril_state.tokens.get_imeisv = 0;
 	}
@@ -94,10 +135,16 @@ void ipc_misc_me_sn(struct ipc_message_info *info)
 
 void ril_request_baseband_version(RIL_Token t)
 {
+	if(ril_state.tokens.baseband_version) {
+		LOGD("Another Baseband version request is waiting, aborting");
+		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+		return;
+	}
+
+	ril_state.tokens.baseband_version = t;
+
 	if(ril_state.radio_state != RADIO_STATE_OFF) {
 		ipc_fmt_send_get(IPC_MISC_ME_VERSION, reqGetId(t));
-	} else {
-		ril_state.tokens.baseband_version = t;
 	}
 }
 
@@ -105,11 +152,15 @@ void ipc_misc_me_version(struct ipc_message_info *info)
 {
 	char sw_version[33];
 	struct ipc_misc_me_version *version = (struct ipc_misc_me_version *) info->data;
+	RIL_Token t = reqGetToken(info->aseq);
+
+	if(ril_state.tokens.get_imei != t) 
+		LOGE("IMEI tokens mismatch");
 
 	memcpy(sw_version, version->sw_version, 32);
 	sw_version[32] = '\0';
 
-	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, sw_version, sizeof(sw_version));
+	RIL_onRequestComplete(t, RIL_E_SUCCESS, sw_version, sizeof(sw_version));
 }
 
 /**

@@ -142,15 +142,15 @@ void ril_tokens_check(void)
 {
 	if(ril_state.tokens.baseband_version != 0) {
 		if(ril_state.radio_state != RADIO_STATE_OFF) {
-			ril_request_baseband_version(ril_state.tokens.baseband_version);
 			ril_state.tokens.baseband_version = 0;
+			ril_request_baseband_version(ril_state.tokens.baseband_version);
 		}
 	}
 
-	if(ril_state.tokens.get_imei != 0) {
+	if(ril_state.tokens.get_imei != 0 && ril_state.tokens.get_imeisv != 0) {
 		if(ril_state.radio_state != RADIO_STATE_OFF) {
-			ril_request_get_imei(ril_state.tokens.get_imei);
 			ril_state.tokens.get_imei = 0;
+			ril_request_get_imei(ril_state.tokens.get_imei);
 		}
 	}
 }
