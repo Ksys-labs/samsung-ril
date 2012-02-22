@@ -25,36 +25,61 @@
 #include "samsung-ril.h"
 #include "util.h"
 
-void ipc_disp_icon_info(struct ipc_message_info *info)
+/**
+ * Converts IPC RSSI to Android RIL format
+ */
+void ipc2ril_rssi(unsigned char rssi, RIL_SignalStrength *ss)
 {
-	struct ipc_disp_icon_info *signal_info = (struct ipc_disp_icon_info *) info->data;
-	RIL_SignalStrength ss;
-	int rssi;
+	int ril_rssi;
 
-	/* Don't consider this if modem isn't in normal power mode. */
-	if(ril_state.power_mode < POWER_MODE_NORMAL)
-		return;
+	memset(ss, 0, sizeof(ss));
 
-	memset(&ss, 0, sizeof(ss));
+	if(rssi > 0x6f) {
+		ril_rssi = 0;
+	} else {
+		ril_rssi = (((rssi - 0x71) * -1) - ((rssi - 0x71) * -1) % 2) / 2;
+		if(ril_rssi > 31)
+			ril_rssi = 31;
+	}
 
-	/* Multiplying the number of bars by 3 yields
-	 * an asu with an equal number of bars in Android
-	 */
-	rssi = (3 * signal_info->rssi);
+	LOGD("Signal Strength is %d\n", ril_rssi);
 
-	ss.GW_SignalStrength.signalStrength = rssi;
-	ss.GW_SignalStrength.bitErrorRate = 99;
+	ss->GW_SignalStrength.signalStrength = ril_rssi;
+	ss->GW_SignalStrength.bitErrorRate = 99;
 
 	/* Send CDMA and EVDO levels even in GSM mode */
-	ss.CDMA_SignalStrength.dbm = rssi;
-	ss.CDMA_SignalStrength.ecio = 200;
+	ss->CDMA_SignalStrength.dbm = ril_rssi;
+	ss->CDMA_SignalStrength.ecio = 200;
 
-	ss.EVDO_SignalStrength.dbm = rssi;
-	ss.EVDO_SignalStrength.ecio = 200;
+	ss->EVDO_SignalStrength.dbm = ril_rssi;
+	ss->EVDO_SignalStrength.ecio = 200;
+}
 
-	LOGD("Signal Strength is %d\n", rssi);
+void ril_request_signal_strength(RIL_Token t)
+{
+	unsigned char request = 1;
 
-	RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &ss, sizeof(ss));
+	ipc_fmt_send(IPC_DISP_ICON_INFO, IPC_TYPE_GET, &request, sizeof(request), reqGetId(t));
+}
+
+void ipc_disp_icon_info(struct ipc_message_info *info)
+{
+	struct ipc_disp_icon_info *icon_info = (struct ipc_disp_icon_info *) info->data;
+	RIL_SignalStrength ss;
+
+	/* Don't consider this if modem isn't in normal power mode. */
+	if(ril_state.power_mode < POWER_MODE_NORMAL || icon_info->rssi == 0xff)
+		return;
+
+	ipc2ril_rssi(icon_info->rssi, &ss);
+
+	if(info->aseq == 0xff) {
+		LOGD("Unsol request!");
+		RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &ss, sizeof(ss));
+	} else {
+		LOGD("Sol request!");
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ss, sizeof(ss));
+	}
 }
 
 void ipc_disp_rssi_info(struct ipc_message_info *info)
@@ -67,27 +92,7 @@ void ipc_disp_rssi_info(struct ipc_message_info *info)
 	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
 
-	memset(&ss, 0, sizeof(ss));
-
-	if(rssi_info->rssi > 0x6f) {
-		rssi = 0;
-	} else {
-		rssi = (((rssi_info->rssi - 0x71) * -1) - ((rssi_info->rssi - 0x71) * -1) % 2) / 2;
-		if(rssi > 31)
-			rssi = 31;
-	}
-
-	/* Send CDMA and EVDO levels even in GSM mode */
-	ss.GW_SignalStrength.signalStrength = rssi;
-	ss.GW_SignalStrength.bitErrorRate = 99;
-
-	ss.CDMA_SignalStrength.dbm = rssi;
-	ss.CDMA_SignalStrength.ecio = 200;
-
-	ss.EVDO_SignalStrength.dbm = rssi;
-	ss.EVDO_SignalStrength.ecio = 200;
-
-	LOGD("Signal Strength is %d\n", rssi);
+	ipc2ril_rssi(rssi_info->rssi, &ss);
 
 	RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &ss, sizeof(ss));
 }

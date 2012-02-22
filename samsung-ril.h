@@ -215,6 +215,7 @@ void ipc_pwr_phone_state(struct ipc_message_info *info);
 void ril_request_radio_power(RIL_Token t, void *data, size_t datalen);
 
 /* DISP */
+void ril_request_signal_strength(RIL_Token t);
 void ipc_disp_icon_info(struct ipc_message_info *info);
 void ipc_disp_rssi_info(struct ipc_message_info *info);
 

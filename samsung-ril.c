@@ -336,6 +336,10 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_BASEBAND_VERSION:
 			ril_request_baseband_version(t);
 			break;
+		/* DISP */
+		case RIL_REQUEST_SIGNAL_STRENGTH:
+			ril_request_signal_strength(t);
+			break;
 		/* MISC */
 		case RIL_REQUEST_GET_IMEI:
 			ril_request_get_imei(t);
