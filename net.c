@@ -218,7 +218,10 @@ int ril_tokens_net_get_data_waiting(void)
  */
 void ril_tokens_net_state_dump(void)
 {
-	LOGD("ril_tokens_net_state_dump:\n\tril_state.tokens.registration_state = 0x%x\n\tril_state.tokens.gprs_registration_state = 0x%x\n\tril_state.tokens.operator = 0x%x\n", ril_state.tokens.registration_state, ril_state.tokens.gprs_registration_state, ril_state.tokens.operator);
+	LOGD("ril_tokens_net_state_dump:\n\
+	\tril_state.tokens.registration_state = 0x%x\n\
+	\tril_state.tokens.gprs_registration_state = 0x%x\n\
+	\tril_state.tokens.operator = 0x%x\n", ril_state.tokens.registration_state, ril_state.tokens.gprs_registration_state, ril_state.tokens.operator);
 }
 
 void ril_plmn_split(char *plmn_data, char **plmn, unsigned int *mcc, unsigned int *mnc)
