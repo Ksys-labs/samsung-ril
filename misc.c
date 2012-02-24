@@ -88,7 +88,7 @@ void ipc_misc_me_sn_imei(RIL_Token t, void *data, int length)
 	imei_info = (struct ipc_misc_me_sn *) data;
 
 	if(ril_state.tokens.get_imei != t) 
-		LOGE("IMEI tokens mismatch");
+		LOGE("IMEI tokens mismatch (0x%x and 0x%x)", ril_state.tokens.get_imei, t);
 
 	if(imei_info->length > 32)
 		return;
@@ -135,6 +135,7 @@ void ipc_misc_me_sn(struct ipc_message_info *info)
 
 void ril_request_baseband_version(RIL_Token t)
 {
+	unsigned char data;
 	if(ril_state.tokens.baseband_version) {
 		LOGD("Another Baseband version request is waiting, aborting");
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -144,7 +145,9 @@ void ril_request_baseband_version(RIL_Token t)
 	ril_state.tokens.baseband_version = t;
 
 	if(ril_state.radio_state != RADIO_STATE_OFF) {
-		ipc_fmt_send_get(IPC_MISC_ME_VERSION, reqGetId(t));
+		data = 0xff;
+
+		ipc_fmt_send(IPC_MISC_ME_VERSION, IPC_TYPE_GET, (unsigned char *) &data, sizeof(data), reqGetId(t));
 	}
 }
 
@@ -154,13 +157,14 @@ void ipc_misc_me_version(struct ipc_message_info *info)
 	struct ipc_misc_me_version *version = (struct ipc_misc_me_version *) info->data;
 	RIL_Token t = reqGetToken(info->aseq);
 
-	if(ril_state.tokens.get_imei != t) 
-		LOGE("IMEI tokens mismatch");
+	if(ril_state.tokens.baseband_version != t) 
+		LOGE("Baseband tokens mismatch (0x%x and 0x%x)", ril_state.tokens.baseband_version, t);
 
 	memcpy(sw_version, version->sw_version, 32);
 	sw_version[32] = '\0';
 
 	RIL_onRequestComplete(t, RIL_E_SUCCESS, sw_version, sizeof(sw_version));
+	ril_state.tokens.baseband_version = 0;
 }
 
 /**
