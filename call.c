@@ -243,6 +243,17 @@ void ril_request_dtmf(RIL_Token t, void *data, int length)
 	unsigned char dtmf_count = 1;
 	int i;
 
+	if(ril_state.dtmf_tone != 0) {
+		LOGD("Another tone wasn't stopped, stopping that one before anything");
+
+		cont_dtmf.state = IPC_CALL_DTMF_STATE_STOP;
+		cont_dtmf.tone = 0;
+
+		ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (void *) &cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
+
+		usleep(300);
+	}
+
 	burst_len = sizeof(struct ipc_call_cont_dtmf) * dtmf_count + 1;
 	burst = malloc(burst_len);
 	memset(burst, 0, burst_len);
@@ -281,15 +292,27 @@ void ipc_call_burst_dtmf(struct ipc_message_info *info)
 
 void ril_request_dtmf_start(RIL_Token t, void *data, int length)
 {
-	//TODO: Check if there is already a DTMF going on and cancel it if so
-
 	struct ipc_call_cont_dtmf cont_dtmf;
+
+	if(ril_state.dtmf_tone != 0) {
+		LOGD("Another tone wasn't stopped, stopping that one before anything");
+
+		cont_dtmf.state = IPC_CALL_DTMF_STATE_STOP;
+		cont_dtmf.tone = 0;
+
+		ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (void *) &cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
+
+		usleep(300);
+	}
+
 	cont_dtmf.state = IPC_CALL_DTMF_STATE_START;
-	cont_dtmf.tone = ((char *)data)[0];
+	cont_dtmf.tone = ((unsigned char *)data)[0];
+
+	ril_state.dtmf_tone = cont_dtmf.tone;
+
+	ipc_gen_phone_res_expect_to_complete(reqGetId(t), IPC_CALL_CONT_DTMF);
 
 	ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (void *) &cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
-
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 }
 
 void ril_request_dtmf_stop(RIL_Token t)
@@ -298,7 +321,9 @@ void ril_request_dtmf_stop(RIL_Token t)
 	cont_dtmf.state = IPC_CALL_DTMF_STATE_STOP;
 	cont_dtmf.tone = 0;
 
-	ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (void *) &cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
+	ril_state.dtmf_tone = 0;
 
-	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+	ipc_gen_phone_res_expect_to_complete(reqGetId(t), IPC_CALL_CONT_DTMF);
+
+	ipc_fmt_send(IPC_CALL_CONT_DTMF, IPC_TYPE_SET, (void *) &cont_dtmf, sizeof(cont_dtmf), reqGetId(t));
 }

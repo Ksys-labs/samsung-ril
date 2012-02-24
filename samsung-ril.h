@@ -181,6 +181,8 @@ struct ril_state {
 
 	struct ipc_gprs_pdp_context gprs_context;
 
+	unsigned char dtmf_tone;
+
 	unsigned char ussd_state;
 };
 
