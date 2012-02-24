@@ -554,22 +554,22 @@ void ipc_sec_phone_lock(struct ipc_message_info *info)
  */
 void ril_request_query_facility_lock(RIL_Token t, void *data, size_t datalen)
 {
-	unsigned char lock_request;
+	struct ipc_sec_phone_lock_get lock_request;
 
 	char *facility = ((char **) data)[0];
 
 	if(!strcmp(facility, "SC")) {
-		lock_request = IPC_SEC_PIN_SIM_LOCK_SC;
+		lock_request.type = IPC_SEC_PIN_SIM_LOCK_SC;
 	} else if(!strcmp(facility, "FD")) {
-		lock_request = IPC_SEC_PIN_SIM_LOCK_FD;
+		lock_request.type = IPC_SEC_PIN_SIM_LOCK_FD;
 	} else if(!strcmp(facility, "PN")) {
-		lock_request = IPC_SEC_PIN_SIM_LOCK_PN;
+		lock_request.type = IPC_SEC_PIN_SIM_LOCK_PN;
 	} else if(!strcmp(facility, "PU")) {
-		lock_request = IPC_SEC_PIN_SIM_LOCK_PU;
+		lock_request.type = IPC_SEC_PIN_SIM_LOCK_PU;
 	} else if(!strcmp(facility, "PP")) {
-		lock_request = IPC_SEC_PIN_SIM_LOCK_PP;
+		lock_request.type = IPC_SEC_PIN_SIM_LOCK_PP;
 	} else if(!strcmp(facility, "PC")) {
-		lock_request = IPC_SEC_PIN_SIM_LOCK_PC;
+		lock_request.type = IPC_SEC_PIN_SIM_LOCK_PC;
 	} else {
 		LOGE("%s: unsupported facility: %s", __FUNCTION__, facility);
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -589,7 +589,7 @@ void ril_request_query_facility_lock(RIL_Token t, void *data, size_t datalen)
  */
 void ril_request_set_facility_lock(RIL_Token t, void *data, size_t datalen)
 {
-	struct ipc_sec_phone_lock_request lock_request;
+	struct ipc_sec_phone_lock_set lock_request;
 
 	char *facility = ((char **) data)[0];
 	char *lock = ((char **) data)[1];
