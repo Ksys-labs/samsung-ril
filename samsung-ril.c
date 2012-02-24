@@ -140,17 +140,21 @@ void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t resp
 
 void ril_tokens_check(void)
 {
+	RIL_Token t;
+
 	if(ril_state.tokens.baseband_version != 0) {
 		if(ril_state.radio_state != RADIO_STATE_OFF) {
+			t = ril_state.tokens.baseband_version;
 			ril_state.tokens.baseband_version = 0;
-			ril_request_baseband_version(ril_state.tokens.baseband_version);
+			ril_request_baseband_version(t);
 		}
 	}
 
 	if(ril_state.tokens.get_imei != 0 && ril_state.tokens.get_imeisv != 0) {
 		if(ril_state.radio_state != RADIO_STATE_OFF) {
+			t = ril_state.tokens.get_imei;
 			ril_state.tokens.get_imei = 0;
-			ril_request_get_imei(ril_state.tokens.get_imei);
+			ril_request_get_imei(t);
 		}
 	}
 }
@@ -204,7 +208,7 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 		case IPC_SS_USSD:
 			ipc_ss_ussd(info);
 			break;
-		/* SIM */
+		/* SEC */
 		case IPC_SEC_PIN_STATUS:
 			ipc_sec_pin_status(info);
 			break;
@@ -366,15 +370,21 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 			break;
 		case RIL_REQUEST_CANCEL_USSD:
 			ril_request_cancel_ussd(t, data, datalen);
-		/* SIM */
+		/* SEC */
 		case RIL_REQUEST_GET_SIM_STATUS:
-			ril_request_sim_status(t);
+			ril_request_get_sim_status(t);
 			break;
 		case RIL_REQUEST_SIM_IO:
 			ril_request_sim_io(t, data, datalen);
 			break;
 		case RIL_REQUEST_ENTER_SIM_PIN:
 			ril_request_enter_sim_pin(t, data, datalen);
+			break;
+		case RIL_REQUEST_CHANGE_SIM_PIN:
+			ril_request_change_sim_pin(t, data, datalen);
+			break;
+		case RIL_REQUEST_ENTER_SIM_PUK:
+			ril_request_enter_sim_puk(t, data, datalen);
 			break;
 		case RIL_REQUEST_QUERY_FACILITY_LOCK:
 			ril_request_query_facility_lock(t, data, datalen);
@@ -472,6 +482,7 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 
 RIL_RadioState currentState()
 {
+	LOGD("currentState()");
 	return ril_state.radio_state;
 }
 
@@ -553,7 +564,7 @@ ipc_fmt:
 
 	LOGD("IPC FMT client ready");
 
-ipc_rfs:
+ipc_rfs:/*
 	LOGD("Creating IPC RFS client");
 
 	ipc_rfs_client = ril_client_new(&ipc_rfs_client_funcs);
@@ -572,7 +583,7 @@ ipc_rfs:
 	}
 
 	LOGD("IPC RFS client ready");
-
+*/
 srs:
 	LOGD("Creating SRS client");
 

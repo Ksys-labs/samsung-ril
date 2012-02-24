@@ -129,6 +129,7 @@ void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void *response, size_t resp
 
 struct ril_tokens {
 	RIL_Token radio_power;
+	RIL_Token pin_status;
 	RIL_Token get_imei;
 	RIL_Token get_imeisv;
 	RIL_Token baseband_version;
@@ -165,11 +166,14 @@ typedef enum {
 
 struct ril_state {
 	RIL_RadioState radio_state;
-	RIL_CardState card_state;
+//	RIL_CardStatus card_status;
 	SIM_Status sim_status;
 	Modem_PowerMode power_mode;
 
 	struct ril_tokens tokens;
+
+	struct ipc_sec_pin_status_response sim_pin_status;
+	struct ipc_sec_sim_icc_type sim_type;
 
 	struct ipc_net_regist netinfo;
 	struct ipc_net_regist gprs_netinfo;
@@ -241,16 +245,19 @@ void ril_request_send_ussd(RIL_Token t, void *data, size_t datalen);
 void ril_request_cancel_ussd(RIL_Token t, void *data, size_t datalen);
 void ipc_ss_ussd(struct ipc_message_info *info);
 
-/* SIM */
+/* SEC */
+void ril_state_update(SIM_Status status);
 void ipc_sec_pin_status(struct ipc_message_info *info);
-void ril_request_sim_status(RIL_Token t);
+void ril_request_get_sim_status(RIL_Token t);
 void ril_request_sim_io(RIL_Token t, void *data, size_t datalen);
 void ipc_sec_rsim_access(struct ipc_message_info *info);
-void ril_request_enter_sim_pin(RIL_Token t, void *data, size_t datalen);
 void ipc_sec_pin_status_complete(struct ipc_message_info *info);
 void ipc_sec_lock_info(struct ipc_message_info *info);
+void ril_request_enter_sim_pin(RIL_Token t, void *data, size_t datalen);
+void ril_request_change_sim_pin(RIL_Token t, void *data, size_t datalen);
+void ril_request_enter_sim_puk(RIL_Token t, void *data, size_t datalen);
 void ril_request_query_facility_lock(RIL_Token t, void *data, size_t datalen);
-void ipc_sec_phone_lock(struct ipc_message_info *info);
+void ipc_sec_phone_lock_complete(struct ipc_message_info *info);
 void ril_request_set_facility_lock(RIL_Token t, void *data, size_t datalen);
 
 /* NET */
