@@ -53,7 +53,7 @@ unsigned char ipc2ril_reg_state(unsigned char reg_state)
 			return 4;
 		default:
 			LOGE("%s: invalid reg_state: %d", __FUNCTION__, reg_state);
-			return 255;
+			return 0;
 	}
 }
 
@@ -110,7 +110,7 @@ int ipc2ril_mode_sel(unsigned char mode)
 		case IPC_NET_MODE_SEL_UMTS_ONLY:
 			return 2;
 		default:
-			return 255;
+			return 0;
 	}
 }
 
@@ -141,7 +141,7 @@ int ipc2ril_plmn_sel(unsigned char mode)
 		case IPC_NET_PLMN_SEL_AUTO:
 			return 0;
 		default:
-			return 255;
+			return 0;
 	}
 }
 
@@ -156,7 +156,7 @@ unsigned char ril2ipc_plmn_sel(int mode)
 		case 1:
 			return IPC_NET_PLMN_SEL_MANUAL;
 		default:
-			return 255;
+			return 0;
 	}
 }
 
@@ -423,6 +423,8 @@ void ipc_net_current_plmn(struct ipc_message_info *message)
 			}
 			break;
 		case IPC_TYPE_RESP:
+			LOGD("Got SOL Operator message");
+
 			// IPC_NET_REGISTRATION_STATE_ROAMING is the biggest valid value
 			if(ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_NONE ||
 			ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_SEARCHING ||
