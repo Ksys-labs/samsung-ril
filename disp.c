@@ -68,15 +68,18 @@ void ipc_disp_icon_info(struct ipc_message_info *info)
 	RIL_SignalStrength ss;
 
 	/* Don't consider this if modem isn't in normal power mode. */
-	if(ril_state.power_mode < POWER_MODE_NORMAL || icon_info->rssi == 0xff)
+	if(ril_state.power_mode < POWER_MODE_NORMAL)
+		return;
+
+	if(info->type == IPC_TYPE_NOTI && icon_info->rssi == 0xff)
 		return;
 
 	ipc2ril_rssi(icon_info->rssi, &ss);
 
-	if(info->aseq == 0xff) {
+	if(info->type == IPC_TYPE_NOTI) {
 		LOGD("Unsol request!");
 		RIL_onUnsolicitedResponse(RIL_UNSOL_SIGNAL_STRENGTH, &ss, sizeof(ss));
-	} else {
+	} else if(info->type == IPC_TYPE_RESP) {
 		LOGD("Sol request!");
 		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ss, sizeof(ss));
 	}
