@@ -564,7 +564,7 @@ ipc_fmt:
 
 	LOGD("IPC FMT client ready");
 
-ipc_rfs:/*
+ipc_rfs:
 	LOGD("Creating IPC RFS client");
 
 	ipc_rfs_client = ril_client_new(&ipc_rfs_client_funcs);
@@ -583,7 +583,7 @@ ipc_rfs:/*
 	}
 
 	LOGD("IPC RFS client ready");
-*/
+
 srs:
 	LOGD("Creating SRS client");
 
