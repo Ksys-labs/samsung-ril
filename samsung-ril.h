@@ -45,6 +45,7 @@
 #define reqGetId(t) ril_request_get_id(t)
 #define reqGetToken(i) ril_request_get_token(i)
 
+#define RIL_TOKEN_DATA_WAITING	(RIL_Token) 0xff
 /**
  * RIL structures
  */

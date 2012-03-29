@@ -25,8 +25,6 @@
 #include "samsung-ril.h"
 #include "util.h"
 
-#define RIL_TOKEN_SEC_DATA_WAITING	(RIL_Token) 0xff
-
 SIM_Status ipc2ril_sim_status(struct ipc_sec_pin_status_response *pin_status)
 {
 	switch(pin_status->type) {
@@ -69,6 +67,52 @@ SIM_Status ipc2ril_sim_status(struct ipc_sec_pin_status_response *pin_status)
 			/* Catchall for locked, card error and unknown states */
 			return SIM_ABSENT;
 	}
+}
+
+/**
+ * Update the radio state based on SIM status
+ *
+ * Out: RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED
+ *   Indicate when value of RIL_RadioState has changed
+ *   Callee will invoke RIL_RadioStateRequest method on main thread
+ */
+void ril_state_update(SIM_Status status)
+{
+	RIL_RadioState radio_state;
+
+	/* If power mode isn't at least normal, don't update RIL state */
+	if(ril_state.power_mode < POWER_MODE_NORMAL)
+		return;
+
+	ril_state.sim_status = status;
+
+	switch(status) {
+		case SIM_READY:
+			radio_state = RADIO_STATE_SIM_READY;
+			break;
+		case SIM_NOT_READY:
+			radio_state = RADIO_STATE_SIM_NOT_READY;
+			break;
+		case SIM_ABSENT:
+		case SIM_PIN:
+		case SIM_PUK:
+		case SIM_BLOCKED:
+		case SIM_NETWORK_PERSO:
+		case SIM_NETWORK_SUBSET_PERSO:
+		case SIM_CORPORATE_PERSO:
+		case SIM_SERVICE_PROVIDER_PERSO:
+			radio_state = RADIO_STATE_SIM_LOCKED_OR_ABSENT;
+			break;
+		default:
+			radio_state = RADIO_STATE_SIM_NOT_READY;
+			break;
+	}
+
+	ril_state.radio_state = radio_state;
+
+	ril_tokens_check();
+
+	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED, NULL, 0);
 }
 
 void ipc2ril_card_status(struct ipc_sec_pin_status_response *pin_status, RIL_CardStatus *card_status)
@@ -141,48 +185,7 @@ void ipc2ril_card_status(struct ipc_sec_pin_status_response *pin_status, RIL_Car
 	card_status->cdma_subscription_app_index = (int) sim_status;
 	card_status->num_applications = app_status_array_length;
 
-	LOGD("Selection application #%d on %d", (int) sim_status, app_status_array_length);
-}
-
-/**
- * Update the radio state based on SIM status
- *
- * Out: RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED
- *   Indicate when value of RIL_RadioState has changed
- *   Callee will invoke RIL_RadioStateRequest method on main thread
- */
-void ril_state_update(SIM_Status status)
-{
-	/* If power mode isn't at least normal, don't update RIL state */
-	if(ril_state.power_mode < POWER_MODE_NORMAL)
-		return;
-
-	ril_state.sim_status = status;
-
-	switch(status) {
-		case SIM_READY:
-			ril_state.radio_state = RADIO_STATE_SIM_READY;
-			break;
-		case SIM_NOT_READY:
-			ril_state.radio_state = RADIO_STATE_SIM_NOT_READY;
-			break;
-		case SIM_ABSENT:
-		case SIM_PIN:
-		case SIM_PUK:
-		case SIM_BLOCKED:
-		case SIM_NETWORK_PERSO:
-		case SIM_NETWORK_SUBSET_PERSO:
-		case SIM_CORPORATE_PERSO:
-		case SIM_SERVICE_PROVIDER_PERSO:
-			ril_state.radio_state = RADIO_STATE_SIM_LOCKED_OR_ABSENT;
-			break;
-		default:
-			ril_state.radio_state = RADIO_STATE_SIM_NOT_READY;
-			break;
-	}
-
-	ril_tokens_check();
-	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED, NULL, 0);
+	LOGD("Selecting application #%d on %d", (int) sim_status, app_status_array_length);
 }
 
 void ril_tokens_pin_status_dump(void)
@@ -223,7 +226,7 @@ void ipc_sec_pin_status(struct ipc_message_info *info)
 
 			LOGD("Got UNSOL PIN status message");
 
-			if(ril_state.tokens.pin_status != (RIL_Token) 0x00 && ril_state.tokens.pin_status != RIL_TOKEN_SEC_DATA_WAITING) {
+			if(ril_state.tokens.pin_status != (RIL_Token) 0x00 && ril_state.tokens.pin_status != RIL_TOKEN_DATA_WAITING) {
 				LOGE("Another PIN status Req is in progress, skipping");
 				return;
 			}
@@ -233,17 +236,8 @@ void ipc_sec_pin_status(struct ipc_message_info *info)
 
 			memcpy(&(ril_state.sim_pin_status), pin_status, sizeof(struct ipc_sec_pin_status_response));
 
-			// Apparently, these aren't interesting RILJ
-			if(sim_status == SIM_ABSENT || sim_status == SIM_READY || sim_status == SIM_NOT_READY)
-				return;
-
-			// We already told RILJ to get the new data but it wasn't done yet 
-			if(ril_state.tokens.pin_status == RIL_TOKEN_SEC_DATA_WAITING) {
-				LOGD("Updating PIN status data in background");
-			} else {
-				ril_state.tokens.pin_status = RIL_TOKEN_SEC_DATA_WAITING;
-				RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
-			}
+			ril_state.tokens.pin_status = RIL_TOKEN_DATA_WAITING;
+			RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED, NULL, 0);
 			break;
 		case IPC_TYPE_RESP:
 			LOGD("Got SOL PIN status message");
@@ -260,7 +254,7 @@ void ipc_sec_pin_status(struct ipc_message_info *info)
 			ipc2ril_card_status(pin_status, &card_status);
 			RIL_onRequestComplete(t, RIL_E_SUCCESS, &card_status, sizeof(RIL_CardStatus));
 
-			if(ril_state.tokens.pin_status != RIL_TOKEN_SEC_DATA_WAITING)
+			if(ril_state.tokens.pin_status != RIL_TOKEN_DATA_WAITING)
 				ril_state.tokens.pin_status = (RIL_Token) 0x00;
 			break;
 		default:
@@ -281,7 +275,7 @@ void ril_request_get_sim_status(RIL_Token t)
 	RIL_CardStatus card_status;
 	SIM_Status sim_status;
 
-	if(ril_state.tokens.pin_status == RIL_TOKEN_SEC_DATA_WAITING) {
+	if(ril_state.tokens.pin_status == RIL_TOKEN_DATA_WAITING) {
 		LOGD("Got RILJ request for UNSOL data");
 		hex_dump(&(ril_state.sim_pin_status), sizeof(struct ipc_sec_pin_status_response));
 		pin_status = &(ril_state.sim_pin_status);
