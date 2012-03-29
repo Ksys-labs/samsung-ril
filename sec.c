@@ -279,10 +279,7 @@ void ril_request_get_sim_status(RIL_Token t)
 		LOGD("Got RILJ request for UNSOL data");
 		hex_dump(&(ril_state.sim_pin_status), sizeof(struct ipc_sec_pin_status_response));
 		pin_status = &(ril_state.sim_pin_status);
-/*
-		sim_status = ipc2ril_sim_status(pin_status);
-		ril_state_update(sim_status);
-*/
+
 		ipc2ril_card_status(pin_status, &card_status);
 
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, &card_status, sizeof(RIL_CardStatus));
@@ -299,10 +296,7 @@ void ril_request_get_sim_status(RIL_Token t)
 		LOGE("Another request is going on, returning UNSOL data");
 
 		pin_status = &(ril_state.sim_pin_status);
-/*
-		sim_status = ipc2ril_sim_status(pin_status);
-		ril_state_update(sim_status);
-*/
+
 		ipc2ril_card_status(pin_status, &card_status);
 		RIL_onRequestComplete(t, RIL_E_SUCCESS, &card_status, sizeof(card_status));
 	}

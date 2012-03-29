@@ -167,7 +167,6 @@ typedef enum {
 
 struct ril_state {
 	RIL_RadioState radio_state;
-//	RIL_CardStatus card_status;
 	SIM_Status sim_status;
 	Modem_PowerMode power_mode;
 

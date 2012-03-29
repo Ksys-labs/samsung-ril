@@ -425,7 +425,7 @@ pdu_end:
 
 	/* Fill the IPC structure part of the message */
 	send_msg.type = IPC_SMS_TYPE_OUTGOING;
-	send_msg.msg_type =  send_msg_type;
+	send_msg.msg_type = send_msg_type;
 	send_msg.length = (unsigned char) (pdu_dec_len + smsc_len + 1);
 	send_msg.smsc_len = smsc_len;
 
@@ -433,7 +433,7 @@ pdu_end:
 	p = data;
 	memcpy(p, &send_msg, send_msg_len);
 	p +=  send_msg_len;
-	memcpy(p, (char *) (smsc + 1), smsc_len);
+	memcpy(p, (char *) (smsc + 1), smsc_len); // First SMSC bytes is length
 	p += smsc_len;
 	memcpy(p, pdu_dec, pdu_dec_len);
 
