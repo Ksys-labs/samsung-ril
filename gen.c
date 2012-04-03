@@ -33,6 +33,7 @@ int ipc_gen_phone_res_id = 0;
 
 /**
  * IPC_GEN_PHONE_RES has shared aseq (in the header), group, index and type (in the data)
+ * with the original request it responds to. 
  * On this implementation, we just check aseq and command (group and index).
  * aseq permits to identify the queued request and do what's wanted.
  * It can be either call a function with the struct ipc_message_info,
@@ -48,6 +49,8 @@ int ipc_gen_phone_res_id = 0;
  * On a custom function, don't forget to get a clean new aseq if you're going to 
  * send some data to the modem, just liek this:
  * aseq = ril_request_reg_id(reqGetToken(info->aseq));
+ *
+ * Please use GEN_PHONE_RES engine as often as possible!
  */
 
 /**

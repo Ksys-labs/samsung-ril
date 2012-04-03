@@ -36,9 +36,7 @@
  *
  * General:
  * - SIM SMS I/O
- * - ipc_disp_icon_info: trace on RILJ & emulate RIl_REQUEST_SIGNAL_STRENGTH
- * - gen phone res queue → apply to max functions
- * - DTMF burst queue + lock, DTMF_START lock
+ * - Review code with requests that produce GEN_PHONE_RES messages to use the GEN_PHONE_RES engine
  *
  * Data-related:
  * - find a reliable way to configure data iface
