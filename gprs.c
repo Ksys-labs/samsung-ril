@@ -49,30 +49,61 @@ void ipc_gprs_pdp_context_complete(struct ipc_message_info *info)
 
 	rc = ipc_gen_phone_res_check(phone_res);
 	if(rc < 0) {
-		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
 		LOGE("There was an error, aborting PDP context complete");
+		ril_state.tokens.gprs_context = (RIL_Token) 0x00;
+
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
 		return;
 	}
 
 	/* We need to get a clean new aseq here */
 	aseq = ril_request_reg_id(reqGetToken(info->aseq));
 
+	ipc_gen_phone_res_expect_to_abort(aseq, IPC_GPRS_PDP_CONTEXT);
+
 	/* activate the connection */
 	ipc_fmt_send(IPC_GPRS_PDP_CONTEXT, IPC_TYPE_SET, 
 			(void *) &(ril_state.gprs_context), sizeof(struct ipc_gprs_pdp_context), aseq);
 
-	ipc_gen_phone_res_expect_to_abort(aseq, IPC_GPRS_PDP_CONTEXT);
 	// TODO: if this aborts, last fail cause will be: PDP_FAIL_ERROR_UNSPECIFIED
+}
+
+void ipc_gprs_port_list_complete(struct ipc_message_info *info)
+{
+	struct ipc_gen_phone_res *phone_res = (struct ipc_gen_phone_res *) info->data;
+	int rc;
+	int aseq;
+
+	rc = ipc_gen_phone_res_check(phone_res);
+	if(rc < 0) {
+		LOGE("There was an error, aborting port list complete");
+		ril_state.tokens.gprs_context = (RIL_Token) 0x00;
+
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
+		return;
+	}
+
+	/* We need to get a clean new aseq here */
+	aseq = ril_request_reg_id(reqGetToken(info->aseq));
+
+	ipc_gen_phone_res_expect_to_func(aseq, IPC_GPRS_DEFINE_PDP_CONTEXT,
+		ipc_gprs_pdp_context_complete);
+
+	/* send the struct to the modem */
+	ipc_fmt_send(IPC_GPRS_DEFINE_PDP_CONTEXT, IPC_TYPE_SET, 
+		(void *) &(ril_state.gprs_define_context), sizeof(struct ipc_gprs_define_pdp_context), aseq);
 }
 
 void ril_request_setup_data_call(RIL_Token t, void *data, int length)
 {
+	struct ipc_gprs_port_list port_list;
+	struct ipc_client *ipc_client;
+
 	char *username = NULL;
 	char *password = NULL;
 	char *apn = NULL;
 
-	struct ipc_gprs_define_pdp_context setup_apn_message;
-	struct ipc_gprs_pdp_context activate_message;
+	ipc_client = ((struct ipc_client_object *) ipc_fmt_client->object)->ipc_client;
 
 	/* get the apn, username and password */
 	apn = ((char **) data)[2];
@@ -96,18 +127,38 @@ void ril_request_setup_data_call(RIL_Token t, void *data, int length)
 
 	LOGD("Requesting data connection to APN '%s'\n", apn);
 
+	if(ril_state.tokens.gprs_context != (RIL_Token) 0x00) {
+		LOGE("There is already a data call request going on!");
+
+		// TODO: Fill last fail reason!
+		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+	}
+
+	ril_state.tokens.gprs_context = t;
+
 	/* create the structs with the apn */
-	ipc_gprs_define_pdp_context_setup(&setup_apn_message, apn);
+	ipc_gprs_define_pdp_context_setup(&(ril_state.gprs_define_context), apn);
 
 	/* create the structs with the username/password tuple */
 	ipc_gprs_pdp_context_setup(&(ril_state.gprs_context), 1, username, password);
 
-	ipc_gen_phone_res_expect_to_func(reqGetId(t), IPC_GPRS_DEFINE_PDP_CONTEXT,
-		ipc_gprs_pdp_context_complete);
+	// If handlers are available, deal with port list
+	if(ipc_client_gprs_handlers_available(ipc_client)) {
+		ipc_gprs_port_list_setup(&port_list);
 
-	/* send the struct to the modem */
-	ipc_fmt_send(IPC_GPRS_DEFINE_PDP_CONTEXT, IPC_TYPE_SET, 
-			(void *) &setup_apn_message, sizeof(struct ipc_gprs_define_pdp_context), reqGetId(t));
+		ipc_gen_phone_res_expect_to_func(reqGetId(t), IPC_GPRS_PORT_LIST,
+			ipc_gprs_port_list_complete);
+
+		ipc_fmt_send(IPC_GPRS_PORT_LIST, IPC_TYPE_SET, 
+			(void *) &port_list, sizeof(struct ipc_gprs_port_list), reqGetId(t));
+	} else {
+		ipc_gen_phone_res_expect_to_func(reqGetId(t), IPC_GPRS_DEFINE_PDP_CONTEXT,
+			ipc_gprs_pdp_context_complete);
+
+		/* send the struct to the modem */
+		ipc_fmt_send(IPC_GPRS_DEFINE_PDP_CONTEXT, IPC_TYPE_SET, 
+			(void *) &(ril_state.gprs_define_context), sizeof(struct ipc_gprs_define_pdp_context), reqGetId(t));
+	}
 }
 
 void ipc_gprs_ip_configuration(struct ipc_message_info *info)
@@ -115,6 +166,7 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 	/* Quick and dirty configuration, TODO: Handle that better */
 
         struct ipc_gprs_ip_configuration *ip_config = (struct ipc_gprs_ip_configuration *) info->data;
+	struct ipc_client *ipc_client;
 
 	char local_ip[IP_STRING_SIZE];
 	char gateway[IP_STRING_SIZE];
@@ -125,8 +177,12 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 	char dns_prop_name[PROPERTY_KEY_MAX];
 	char gw_prop_name[PROPERTY_KEY_MAX];
 
+	char *interface;
+
 	char *response[3];
 	int rc;
+
+	ipc_client = ((struct ipc_client_object *) ipc_fmt_client->object)->ipc_client;
 
 	/* TODO: transform that into some macros */
 	snprintf(local_ip, IP_STRING_SIZE, "%i.%i.%i.%i",(ip_config->ip)[0],(ip_config->ip)[1],
@@ -145,7 +201,25 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 
         LOGD("GPRS configuration: ip:%s, gateway:%s, subnet_mask:%s, dns1:%s, dns2:%s",
 							local_ip, gateway, subnet_mask ,dns1, dns2);
-	rc = ifc_configure(INTERFACE, 
+
+	if(ipc_client_gprs_handlers_available(ipc_client)) {
+		rc = ipc_client_gprs_activate(ipc_client);
+		if(rc < 0) {
+			// This is not a critical issue
+			LOGE("Failed to activate interface!");
+		}
+	}
+
+	rc = ipc_client_gprs_get_iface(ipc_client, &interface);
+	if(rc < 0) {
+		// This is not a critical issue, fallback to rmnet0
+		LOGE("Failed to get interface name!");
+		asprintf(&interface, "rmnet0");
+	}
+
+	LOGD("Iface name is %s\n", interface);
+
+	rc = ifc_configure(interface, 
 			inet_addr(local_ip),
 			inet_addr(subnet_mask),
 			inet_addr(gateway),
@@ -153,29 +227,50 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 			inet_addr(dns2));
         LOGD("ifc_configure: %d",rc);
 
-	snprintf(dns_prop_name, sizeof(dns_prop_name), "net.%s.dns1", INTERFACE);
+	snprintf(dns_prop_name, sizeof(dns_prop_name), "net.%s.dns1", interface);
 	property_set(dns_prop_name, dns1);
-	snprintf(dns_prop_name, sizeof(dns_prop_name), "net.%s.dns2", INTERFACE);
+	snprintf(dns_prop_name, sizeof(dns_prop_name), "net.%s.dns2", interface);
 	property_set(dns_prop_name, dns2);
-	snprintf(gw_prop_name, sizeof(gw_prop_name), "net.%s.gw", INTERFACE);
+	snprintf(gw_prop_name, sizeof(gw_prop_name), "net.%s.gw", interface);
 	property_set(dns_prop_name, gateway);
 
 	response[0] = "0"; //FIXME: connection id
-	response[1] = INTERFACE;
+	response[1] = interface;
 	response[2] = local_ip;
 
-	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, response, sizeof(response));
+	RIL_onRequestComplete(ril_state.tokens.gprs_context, RIL_E_SUCCESS, response, sizeof(response));
+
+	ril_state.tokens.gprs_context = (RIL_Token) 0x00;
+
+	// FIXME: is it wise to free returned data?
+	free(interface);
 }
 
 void ril_request_deactivate_data_call(RIL_Token t, void *data, int length)
 {
 	struct ipc_gprs_pdp_context deactivate_message;
+	struct ipc_client *ipc_client;
+	int rc;
+
+	ipc_client = ((struct ipc_client_object *) ipc_fmt_client->object)->ipc_client;
+
 	memset(&deactivate_message, 0, sizeof(deactivate_message));
 	deactivate_message.unk0[1]=1;
 
 	/* send the struct to the modem */
 	ipc_fmt_send(IPC_GPRS_PDP_CONTEXT, IPC_TYPE_SET, 
 			(void *) &deactivate_message, sizeof(struct ipc_gprs_pdp_context), reqGetId(t));
+
+	if(ipc_client_gprs_handlers_available(ipc_client)) {
+		rc = ipc_client_gprs_deactivate(ipc_client);
+		if(rc < 0) {
+			// This is not a critical issue
+			LOGE("Failed to deactivate interface!");
+		}
+	}
+
+	// Clean the token
+	ril_state.tokens.gprs_context = (RIL_Token) 0x00;
 
 	RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
 }

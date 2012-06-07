@@ -134,10 +134,12 @@ struct ril_tokens {
 	RIL_Token get_imei;
 	RIL_Token get_imeisv;
 	RIL_Token baseband_version;
+	RIL_Token gprs_context;
 
 	RIL_Token registration_state;
 	RIL_Token gprs_registration_state;
 	RIL_Token operator;
+
 };
 
 void ril_tokens_check(void);
@@ -180,6 +182,7 @@ struct ril_state {
 	struct ipc_net_current_plmn plmndata;
 
 	struct ipc_gprs_pdp_context gprs_context;
+	struct ipc_gprs_define_pdp_context gprs_define_context;
 
 	unsigned char dtmf_tone;
 
