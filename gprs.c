@@ -30,7 +30,6 @@
 #include "util.h"
 
 /* FIXME: we don't want these hardcoded */
-#define INTERFACE		"rmnet0"
 #define IP_STRING_SIZE		15 + 1
 
 // libnetutils missing prototype
@@ -45,13 +44,30 @@ void ipc_gprs_pdp_context_complete(struct ipc_message_info *info)
 {
 	struct ipc_gen_phone_res *phone_res = (struct ipc_gen_phone_res *) info->data;
 	int rc;
-	int aseq;
 
 	rc = ipc_gen_phone_res_check(phone_res);
 	if(rc < 0) {
 		LOGE("There was an error, aborting PDP context complete");
-		ril_state.tokens.gprs_context = (RIL_Token) 0x00;
+		// TODO: Fill last fail reason!
 
+		ril_state.tokens.gprs_context = (RIL_Token) 0x00;
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
+		return;
+	}
+}
+
+void ipc_gprs_define_pdp_context_complete(struct ipc_message_info *info)
+{
+	struct ipc_gen_phone_res *phone_res = (struct ipc_gen_phone_res *) info->data;
+	int rc;
+	int aseq;
+
+	rc = ipc_gen_phone_res_check(phone_res);
+	if(rc < 0) {
+		LOGE("There was an error, aborting define PDP context complete");
+		// TODO: Fill last fail reason!
+
+		ril_state.tokens.gprs_context = (RIL_Token) 0x00;
 		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
 		return;
 	}
@@ -59,7 +75,8 @@ void ipc_gprs_pdp_context_complete(struct ipc_message_info *info)
 	/* We need to get a clean new aseq here */
 	aseq = ril_request_reg_id(reqGetToken(info->aseq));
 
-	ipc_gen_phone_res_expect_to_abort(aseq, IPC_GPRS_PDP_CONTEXT);
+	ipc_gen_phone_res_expect_to_func(aseq, IPC_GPRS_PDP_CONTEXT,
+		ipc_gprs_pdp_context_complete);
 
 	/* activate the connection */
 	ipc_fmt_send(IPC_GPRS_PDP_CONTEXT, IPC_TYPE_SET, 
@@ -77,8 +94,9 @@ void ipc_gprs_port_list_complete(struct ipc_message_info *info)
 	rc = ipc_gen_phone_res_check(phone_res);
 	if(rc < 0) {
 		LOGE("There was an error, aborting port list complete");
-		ril_state.tokens.gprs_context = (RIL_Token) 0x00;
+		// TODO: Fill last fail reason!
 
+		ril_state.tokens.gprs_context = (RIL_Token) 0x00;
 		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
 		return;
 	}
@@ -87,7 +105,7 @@ void ipc_gprs_port_list_complete(struct ipc_message_info *info)
 	aseq = ril_request_reg_id(reqGetToken(info->aseq));
 
 	ipc_gen_phone_res_expect_to_func(aseq, IPC_GPRS_DEFINE_PDP_CONTEXT,
-		ipc_gprs_pdp_context_complete);
+		ipc_gprs_define_pdp_context_complete);
 
 	/* send the struct to the modem */
 	ipc_fmt_send(IPC_GPRS_DEFINE_PDP_CONTEXT, IPC_TYPE_SET, 
@@ -129,9 +147,11 @@ void ril_request_setup_data_call(RIL_Token t, void *data, int length)
 
 	if(ril_state.tokens.gprs_context != (RIL_Token) 0x00) {
 		LOGE("There is already a data call request going on!");
-
 		// TODO: Fill last fail reason!
+
+		ril_state.tokens.gprs_context = (RIL_Token) 0x00;
 		RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+		return;
 	}
 
 	ril_state.tokens.gprs_context = t;
@@ -153,7 +173,7 @@ void ril_request_setup_data_call(RIL_Token t, void *data, int length)
 			(void *) &port_list, sizeof(struct ipc_gprs_port_list), reqGetId(t));
 	} else {
 		ipc_gen_phone_res_expect_to_func(reqGetId(t), IPC_GPRS_DEFINE_PDP_CONTEXT,
-			ipc_gprs_pdp_context_complete);
+			ipc_gprs_define_pdp_context_complete);
 
 		/* send the struct to the modem */
 		ipc_fmt_send(IPC_GPRS_DEFINE_PDP_CONTEXT, IPC_TYPE_SET, 
