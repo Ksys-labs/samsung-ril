@@ -25,20 +25,13 @@
 #define LOG_TAG "RIL-GPRS"
 #include <utils/Log.h>
 #include <cutils/properties.h>
+#include <netutils/ifc.h>
 
 #include "samsung-ril.h"
 #include "util.h"
 
 /* FIXME: we don't want these hardcoded */
 #define IP_STRING_SIZE		15 + 1
-
-// libnetutils missing prototype
-extern int ifc_configure(const char *ifname,
-	in_addr_t address,
-	in_addr_t netmask,
-	in_addr_t gateway,
-	in_addr_t dns1,
-	in_addr_t dns2);
 
 void ipc_gprs_pdp_context_complete(struct ipc_message_info *info)
 {
@@ -202,6 +195,7 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 
 	char *interface;
 
+	RIL_Data_Call_Response_v6 data_call_response;
 	char *response[3];
 	int rc;
 
@@ -244,24 +238,30 @@ void ipc_gprs_ip_configuration(struct ipc_message_info *info)
 
 	rc = ifc_configure(interface, 
 			inet_addr(local_ip),
-			inet_addr(subnet_mask),
+			ipv4NetmaskToPrefixLength(inet_addr(subnet_mask)),
 			inet_addr(gateway),
 			inet_addr(dns1),
 			inet_addr(dns2));
         LOGD("ifc_configure: %d",rc);
-
+/*
 	snprintf(dns_prop_name, sizeof(dns_prop_name), "net.%s.dns1", interface);
 	property_set(dns_prop_name, dns1);
 	snprintf(dns_prop_name, sizeof(dns_prop_name), "net.%s.dns2", interface);
 	property_set(dns_prop_name, dns2);
 	snprintf(gw_prop_name, sizeof(gw_prop_name), "net.%s.gw", interface);
 	property_set(dns_prop_name, gateway);
+*/
 
-	response[0] = "0"; //FIXME: connection id
-	response[1] = interface;
-	response[2] = local_ip;
+	data_call_response.status = 0;
+	data_call_response.cid = 0;
+	data_call_response.active = 1;
+	data_call_response.type = "IP";
+	data_call_response.ifname = interface;
+	data_call_response.addresses = local_ip;
+	data_call_response.dnses = dns1;
+	data_call_response.gateways = gateway;
 
-	RIL_onRequestComplete(ril_state.tokens.gprs_context, RIL_E_SUCCESS, response, sizeof(response));
+	RIL_onRequestComplete(ril_state.tokens.gprs_context, RIL_E_SUCCESS, &data_call_response, sizeof(data_call_response));
 
 	ril_state.tokens.gprs_context = (RIL_Token) 0x00;
 
