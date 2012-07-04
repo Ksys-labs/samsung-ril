@@ -114,6 +114,7 @@ void ipc_gprs_port_list_complete(struct ipc_message_info *info)
 
 void ril_request_setup_data_call(RIL_Token t, void *data, int length)
 {
+	struct ipc_client_gprs_capabilities gprs_capabilities;
 	struct ipc_gprs_port_list port_list;
 	struct ipc_client *ipc_client;
 
@@ -162,8 +163,10 @@ void ril_request_setup_data_call(RIL_Token t, void *data, int length)
 	/* create the structs with the username/password tuple */
 	ipc_gprs_pdp_context_setup(&(ril_state.gprs_context), 1, username, password);
 
+	ipc_client_gprs_get_capabilities(ipc_client, &gprs_capabilities);
+
 	// If handlers are available, deal with port list
-	if(ipc_client_gprs_handlers_available(ipc_client)) {
+	if(gprs_capabilities.port_list) {
 		ipc_gprs_port_list_setup(&port_list);
 
 		ipc_gen_phone_res_expect_to_func(reqGetId(t), IPC_GPRS_PORT_LIST,
