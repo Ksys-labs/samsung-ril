@@ -66,8 +66,8 @@ int ril_client_create(struct ril_client *client)
 	int rc;
 	int c;
 
-	for(c = 5 ; c > 0 ; c--) {
-		LOGD("Creating RIL client inners, try #%d", 6-c);
+	for(c = 10 ; c > 0 ; c--) {
+		LOGD("Creating RIL client inners, try #%d", 11-c);
 
 		rc = client->create(client);
 
