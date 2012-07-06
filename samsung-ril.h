@@ -181,6 +181,8 @@ struct ril_state {
 	struct ipc_net_regist gprs_netinfo;
 	struct ipc_net_current_plmn plmndata;
 
+	struct ipc_call_status call_status;
+
 	struct ipc_gprs_pdp_context gprs_context;
 	struct ipc_gprs_define_pdp_context gprs_define_context;
 
@@ -332,6 +334,7 @@ void ril_request_get_current_calls(RIL_Token t);
 void ipc_call_list(struct ipc_message_info *info);
 void ril_request_hangup(RIL_Token t);
 void ril_request_answer(RIL_Token t);
+void ril_request_last_call_fail_cause(RIL_Token t);
 void ril_request_dtmf(RIL_Token t, void *data, int length);
 void ipc_call_burst_dtmf(struct ipc_message_info *info);
 void ril_request_dtmf_start(RIL_Token t, void *data, int length);

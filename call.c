@@ -49,6 +49,18 @@ unsigned char ipc2ril_call_list_entry_state(unsigned char call_state)
 	}
 }
 
+RIL_LastCallFailCause ipc2ril_call_fail_cause(unsigned char end_cause)
+{
+	switch(end_cause) {
+		case IPC_CALL_END_CAUSE_NORMAL:
+		case IPC_CALL_END_CAUSE_REJECTED:
+			return CALL_FAIL_NORMAL;
+		case IPC_CALL_END_CAUSE_UNSPECIFIED:
+		default:
+			return CALL_FAIL_ERROR_UNSPECIFIED;
+	}
+}
+
 /**
  * In: RIL_UNSOL_CALL_RING
  *   Ring indication for an incoming call (eg, RING or CRING event).
@@ -70,6 +82,13 @@ void ipc_call_incoming(struct ipc_message_info *info)
  */
 void ipc_call_status(struct ipc_message_info *info)
 {
+	struct ipc_call_status *call_status =
+		(struct ipc_call_status *) info->data;
+
+	memcpy(&(ril_state.call_status), call_status, sizeof(struct ipc_call_status));
+
+	LOGD("Updating Call Status data");
+
 	RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0);
 }
 
@@ -226,9 +245,27 @@ void ril_request_answer(RIL_Token t)
 }
 
 /**
+ * In: RIL_REQUEST_LAST_CALL_FAIL_CAUSE
+ *   Reason why last call was terminated
+ */
+void ril_request_last_call_fail_cause(RIL_Token t)
+{
+	RIL_LastCallFailCause fail_cause;
+	struct ipc_call_status *call_status =
+		&(ril_state.call_status);
+
+	fail_cause = ipc2ril_call_fail_cause(call_status->end_cause);
+
+	// Empty global call_status
+	memset(call_status, 0, sizeof(struct ipc_call_status));
+
+	RIL_onRequestComplete(t, RIL_E_SUCCESS, &fail_cause, sizeof(RIL_LastCallFailCause));
+}
+
+/**
  * In: IPC_CALL_BURST_DTMF
  *   Send DTMF burst. RILJ only sends 1 DTMF tone to send at a time.
- * 
+ *
  * Out: IPC_CALL_BURST_DTMF
  *   It should be possible to send multiple DTMF tones at once in this message.
  *   First byte should be DTMF tones count.

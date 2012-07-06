@@ -443,6 +443,9 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_ANSWER:
 			ril_request_answer(t);
 			break;
+		case RIL_REQUEST_LAST_CALL_FAIL_CAUSE:
+			ril_request_last_call_fail_cause(t);
+			break;
 		case RIL_REQUEST_DTMF:
 			ril_request_dtmf(t, data, datalen);
                        break;
