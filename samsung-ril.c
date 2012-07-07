@@ -268,6 +268,12 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 		case IPC_GPRS_IP_CONFIGURATION:
 			ipc_gprs_ip_configuration(info);
 			break;
+		case IPC_GPRS_CALL_STATUS:
+			ipc_gprs_call_status(info);
+			break;
+		case IPC_GPRS_PDP_CONTEXT:
+			ipc_gprs_pdp_context(info);
+			break;
 		default:
 			LOGD("Unhandled command: %s (%04x)", ipc_command_to_str(IPC_COMMAND(info)), IPC_COMMAND(info));
 			break;
@@ -462,6 +468,12 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_DEACTIVATE_DATA_CALL:
 			ril_request_deactivate_data_call(t, data, datalen);
 			break;
+		case RIL_REQUEST_LAST_DATA_CALL_FAIL_CAUSE:
+			ril_request_last_data_call_fail_cause(t);
+			break;
+		case RIL_REQUEST_DATA_CALL_LIST:
+			ril_request_data_call_list(t);
+			break;
 		/* SND */
 		case RIL_REQUEST_SET_MUTE:
 			ril_request_set_mute(t, data, datalen);
@@ -516,6 +528,7 @@ void ril_globals_init(void)
 
 	ril_requests_tokens_init();
 	ipc_gen_phone_res_expects_init();
+	ril_gprs_connections_init();
 	ril_request_sms_init();
 	ipc_sms_tpid_queue_init();
 }
@@ -541,9 +554,6 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
 	int rc;
 
 	ril_env = env;
-
-	ril_globals_init();
-	ril_state_lpm();
 
 ipc_fmt:
 	LOGD("Creating IPC FMT client");
@@ -606,6 +616,9 @@ srs:
 	LOGD("SRS client ready");
 
 end:
+	ril_globals_init();
+	ril_state_lpm();
+
 	return &ril_ops;
 }
 

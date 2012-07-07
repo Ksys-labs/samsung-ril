@@ -134,7 +134,6 @@ struct ril_tokens {
 	RIL_Token get_imei;
 	RIL_Token get_imeisv;
 	RIL_Token baseband_version;
-	RIL_Token gprs_context;
 
 	RIL_Token registration_state;
 	RIL_Token gprs_registration_state;
@@ -183,8 +182,7 @@ struct ril_state {
 
 	struct ipc_call_status call_status;
 
-	struct ipc_gprs_pdp_context gprs_context;
-	struct ipc_gprs_define_pdp_context gprs_define_context;
+	int gprs_last_failed_cid;
 
 	unsigned char dtmf_tone;
 
@@ -349,9 +347,29 @@ void srs_snd_set_call_audio_path(struct srs_message *message);
 
 /* GPRS */
 
+struct ril_gprs_connection {
+	int cid;
+	int enabled;
+	RIL_LastDataCallActivateFailCause fail_cause;
+
+	RIL_Token token;
+	struct ipc_gprs_pdp_context_set context;
+	struct ipc_gprs_define_pdp_context define_context;
+	struct ipc_gprs_ip_configuration ip_configuration;
+};
+
+void ril_gprs_connections_init(void);
+int ril_gprs_connection_reg_id(void);
+struct ril_gprs_connection *ril_gprs_connection_add(void);
+void ril_gprs_connection_del(struct ril_gprs_connection *gprs_connection);
 void ril_request_setup_data_call(RIL_Token t, void *data, int length);
 void ril_request_deactivate_data_call(RIL_Token t, void *data, int length);
 void ipc_gprs_ip_configuration(struct ipc_message_info *info);
+void ipc_gprs_call_status(struct ipc_message_info *info);
+void ril_request_last_data_call_fail_cause(RIL_Token t);
+void ipc_gprs_pdp_context(struct ipc_message_info *info);
+void ril_unsol_data_call_list_changed(void);
+void ril_request_data_call_list(RIL_Token t);
 
 /* RFS */
 
