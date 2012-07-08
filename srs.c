@@ -169,7 +169,7 @@ int srs_server_open(struct srs_server *srs_server)
 
 	while(t < 5) {
 		unlink(SRS_SOCKET_NAME);
-		server_fd = socket_local_server(SRS_SOCKET_NAME, ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
+		server_fd = socket_local_server(SRS_SOCKET_NAME, ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
 
 		if(server_fd > 0)
 			break;
