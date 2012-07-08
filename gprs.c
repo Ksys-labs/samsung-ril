@@ -497,6 +497,11 @@ int ipc_gprs_connection_enable(struct ril_gprs_connection *gprs_connection, char
 	setup_data_call_response[1] = interface;
 	setup_data_call_response[2] = ip;
 
+	free(gateway);
+	free(subnet_mask);
+	free(dns1);
+	free(dns2);
+
 	return 0;
 }
 
