@@ -1,8 +1,8 @@
 /**
  * This file is part of samsung-ril.
  *
+ * Copyright (C) 2011-2012 Paul Kocialkowski <contact@oaulk.fr>
  * Copyright (C) 2011 Denis 'GNUtoo' Carikli <GNUtoo@no-log.org>
- * Copyright (C) 2011 Paul Kocialkowski <contact@oaulk.fr>
  *
  * samsung-ril is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -132,6 +132,7 @@ struct ril_gprs_connection *ril_gprs_connection_add(void)
 
 	gprs_connection->cid = id + 1;
 	gprs_connection->enabled = 0;
+	gprs_connection->interface = NULL;
 	gprs_connection->token = (RIL_Token) 0x00;
 
 	ril_gprs_connections[id] = gprs_connection;
@@ -145,6 +146,9 @@ void ril_gprs_connection_del(struct ril_gprs_connection *gprs_connection)
 
 	if(gprs_connection == NULL)
 		return;
+
+	if(gprs_connection->interface != NULL)
+		free(gprs_connection->interface);
 
 	for(i=0 ; i < ril_gprs_connections_count ; i++)
 		if(ril_gprs_connections[i] == gprs_connection)
@@ -419,25 +423,12 @@ void ril_request_deactivate_data_call(RIL_Token t, void *data, int length)
 		(void *) &context, sizeof(struct ipc_gprs_pdp_context_set), reqGetId(t));
 }
 
-	// DONE: clean token after returning so we don't return twice on call_status (call_status has to check there is a valid token);
-	// TODO: trigger unsol everytime?
-	// DONE override token by the one we get here! (should be cleaned after confirming enable anyways)
-	// DONE: wait for gen_phone res at very least -> check it everytime and return if failed, or confirm disabled by call_status and then unregister
-	/*
-	 * Set as enabled when:
-	 * - it is disabled and status says it's now enabled -> activate iface and set config
-	 * Set as disabled when:
-	 * - it is enabled and status says it's now disabled -> disable iface
-	 * If there is a fail reason, whatever status is, report failure to the token we haven't cleared yet!
-	 * If there is no fail and we have a token, report to it, and if we go to enabled, then report ip and stuff
-	 */
-
 int ipc_gprs_connection_enable(struct ril_gprs_connection *gprs_connection, char **setup_data_call_response)
 {
 	struct ipc_client *ipc_client;
         struct ipc_gprs_ip_configuration *ip_configuration;
 
-	char *interface;
+	char *interface = NULL;
 	char *ip;
 	char *gateway;
 	char *subnet_mask;
@@ -449,15 +440,6 @@ int ipc_gprs_connection_enable(struct ril_gprs_connection *gprs_connection, char
 	int rc;
 
 	ipc_client = ((struct ipc_client_object *) ipc_fmt_client->object)->ipc_client;
-
-	rc = ipc_client_gprs_get_iface(ipc_client, &interface);
-	if(rc < 0) {
-		// This is not a critical issue, fallback to rmnet
-		LOGE("Failed to get interface name!");
-		asprintf(&interface, "rmnet%d", gprs_connection->cid);
-	}
-
-	LOGD("Using net interface: %s\n", interface);
 
 	ip_configuration = &(gprs_connection->ip_configuration);
 
@@ -477,8 +459,21 @@ int ipc_gprs_connection_enable(struct ril_gprs_connection *gprs_connection, char
 		}
 	}
 
-        LOGD("GPRS configuration: ip:%s, gateway:%s, subnet_mask:%s, dns1:%s, dns2:%s",
-		ip, gateway, subnet_mask, dns1, dns2);
+	rc = ipc_client_gprs_get_iface(ipc_client, &interface, gprs_connection->cid);
+	if(rc < 0) {
+		// This is not a critical issue, fallback to rmnet
+		LOGE("Failed to get interface name!");
+		asprintf(&interface, "rmnet%d", gprs_connection->cid - 1);
+	}
+
+	if(gprs_connection->interface == NULL && interface != NULL) {
+		gprs_connection->interface = strdup(interface);
+	}
+
+	LOGD("Using net interface: %s\n", interface);
+
+        LOGD("GPRS configuration: iface: %s, ip:%s, gateway:%s, subnet_mask:%s, dns1:%s, dns2:%s",
+		interface, ip, gateway, subnet_mask, dns1, dns2);
 
 	rc = ifc_configure(interface, inet_addr(ip),
 		inet_addr(subnet_mask), inet_addr(gateway),
@@ -514,17 +509,23 @@ int ipc_gprs_connection_disable(struct ril_gprs_connection *gprs_connection)
 
 	ipc_client = ((struct ipc_client_object *) ipc_fmt_client->object)->ipc_client;
 
-	rc = ipc_client_gprs_get_iface(ipc_client, &interface);
-	if(rc < 0) {
-		// This is not a critical issue, fallback to rmnet
-		LOGE("Failed to get interface name!");
-		asprintf(&interface, "rmnet%d", gprs_connection->cid);
+	if(gprs_connection->interface == NULL) {
+		rc = ipc_client_gprs_get_iface(ipc_client, &interface, gprs_connection->cid);
+		if(rc < 0) {
+			// This is not a critical issue, fallback to rmnet
+			LOGE("Failed to get interface name!");
+			asprintf(&interface, "rmnet%d", gprs_connection->cid);
+		}
+	} else {
+		interface = gprs_connection->interface;
 	}
 
 	LOGD("Using net interface: %s\n", interface);
 
 	rc = ifc_down(interface);
-	free(interface);
+
+	if(gprs_connection->interface == NULL)
+		free(interface);
 
 	if(rc < 0) {
 		LOGE("ifc_down failed");
@@ -547,7 +548,7 @@ void ipc_gprs_call_status(struct ipc_message_info *info)
 	struct ipc_gprs_call_status *call_status =
 		(struct ipc_gprs_call_status *) info->data;
 
-	char *setup_data_call_response[3];
+	char *setup_data_call_response[3] = { NULL, NULL, NULL };
 	int rc;
 
 	gprs_connection = ril_gprs_connection_get_cid(call_status->cid);
@@ -563,7 +564,7 @@ void ipc_gprs_call_status(struct ipc_message_info *info)
 		if(!gprs_connection->enabled &&
 			call_status->state == IPC_GPRS_STATE_ENABLED &&
 			gprs_connection->token != (RIL_Token) 0x00) {
-			LOGE("GPRS connection is now enabled");
+			LOGD("GPRS connection is now enabled");
 
 			rc = ipc_gprs_connection_enable(gprs_connection, setup_data_call_response);
 			if(rc < 0) {
@@ -575,7 +576,7 @@ void ipc_gprs_call_status(struct ipc_message_info *info)
 
 				RIL_onRequestComplete(gprs_connection->token, RIL_E_GENERIC_FAILURE, NULL, 0);
 			} else {
-				LOGE("GPRS interface enabled");
+				LOGD("GPRS interface enabled");
 
 				gprs_connection->enabled = 1;
 
@@ -592,7 +593,7 @@ void ipc_gprs_call_status(struct ipc_message_info *info)
 		} else if(gprs_connection->enabled &&
 			call_status->state == IPC_GPRS_STATE_DISABLED &&
 			gprs_connection->token != (RIL_Token) 0x00) {
-			LOGE("GPRS connection is now disabled");
+			LOGD("GPRS connection is now disabled");
 
 			rc = ipc_gprs_connection_disable(gprs_connection);
 			if(rc < 0) {
@@ -603,7 +604,7 @@ void ipc_gprs_call_status(struct ipc_message_info *info)
 				// RILJ is not going to ask for fail reason
 				ril_gprs_connection_del(gprs_connection);
 			} else {
-				LOGE("GPRS interface disabled");
+				LOGD("GPRS interface disabled");
 
 				gprs_connection->enabled = 0;
 

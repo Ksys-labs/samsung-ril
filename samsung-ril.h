@@ -351,6 +351,7 @@ struct ril_gprs_connection {
 	int cid;
 	int enabled;
 	RIL_LastDataCallActivateFailCause fail_cause;
+	char *interface;
 
 	RIL_Token token;
 	struct ipc_gprs_pdp_context_set context;
