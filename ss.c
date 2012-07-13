@@ -191,13 +191,29 @@ void ipc_ss_ussd(struct ipc_message_info *info)
 			case 0x0f:
 				LOGD("USSD Rx encoding is GSM7");
 
-				data_dec_len = gsm72ascii(info->data + sizeof(struct ipc_ss_ussd), &data_dec, info->length - sizeof(struct ipc_ss_ussd));
+				data_dec_len = gsm72ascii(info->data
+					+ sizeof(struct ipc_ss_ussd), &data_dec, info->length - sizeof(struct ipc_ss_ussd));
 				asprintf(&message[1], "%s", data_dec);
 				message[1][data_dec_len] = '\0';
 
 				break;
+			case 0x48:
+				LOGD("USSD Rx encoding is UCS2",	ussd->dcs);
+
+				data_dec_len = info->length - sizeof(struct ipc_ss_ussd);
+				message[1] = malloc(data_dec_len * 4 + 1);
+
+				int i, result = 0;
+				char *ucs2 = info->data + sizeof(struct ipc_ss_ussd);
+				for (i = 0; i < data_dec_len; i += 2) {
+					int c = (ucs2[i] << 8) | ucs2[1 + i];
+					result += utf8_write(message[1], result, c);
+				}
+				message[1][result] = '\0';
+				break;
 			default:
-				LOGD("USSD Rx encoding is unknown, assuming ASCII");
+				LOGD("USSD Rx encoding %x is unknown, assuming ASCII",
+					ussd->dcs);
 
 				data_dec_len = info->length - sizeof(struct ipc_ss_ussd);
 				asprintf(&message[1], "%s", info->data + sizeof(struct ipc_ss_ussd));
