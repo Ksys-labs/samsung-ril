@@ -179,7 +179,7 @@ void ipc_ss_ussd(struct ipc_message_info *info)
 	struct ipc_ss_ussd *ussd = NULL;
 	unsigned char state;
 
-	memset(message, 0, sizeof(message) / sizeof(char *));	
+	memset(message, 0, sizeof(message));
 
 	ussd = (struct ipc_ss_ussd *) info->data;
 
