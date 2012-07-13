@@ -223,3 +223,40 @@ void hex_dump(void *data, int size)
 		LOGD("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
 	}
 }
+
+/* writes the utf8 character encoded in v
+ * to the buffer utf8 at the specified offset
+ */
+int utf8_write(char *utf8, int offset, int v)
+{
+
+	int result;
+
+	if (v < 0x80) {
+		result = 1;
+		if (utf8)
+			utf8[offset] = (char)v;
+	} else if (v < 0x800) {
+		result = 2;
+		if (utf8) {
+			utf8[offset + 0] = (char)(0xc0 | (v >> 6));
+			utf8[offset + 1] = (char)(0x80 | (v & 0x3f));
+		}
+	} else if (v < 0x10000) {
+		result = 3;
+		if (utf8) {
+			utf8[offset + 0] = (char)(0xe0 | (v >> 12));
+			utf8[offset + 1] = (char)(0x80 | ((v >> 6) & 0x3f));
+			utf8[offset + 2] = (char)(0x80 | (v & 0x3f));
+		}
+	} else {
+		result = 4;
+		if (utf8) {
+			utf8[offset + 0] = (char)(0xf0 | ((v >> 18) & 0x7));
+			utf8[offset + 1] = (char)(0x80 | ((v >> 12) & 0x3f));
+			utf8[offset + 2] = (char)(0x80 | ((v >> 6) & 0x3f));
+			utf8[offset + 3] = (char)(0x80 | (v & 0x3f));
+		}
+	}
+	return result;
+}
