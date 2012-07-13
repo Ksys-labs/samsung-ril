@@ -168,10 +168,49 @@ void ipc2ril_ussd_state(struct ipc_ss_ussd *ussd, char *message[2])
 	}
 }
 
+typedef enum {
+	SMS_CODING_SCHEME_UNKNOWN = 0,
+	SMS_CODING_SCHEME_GSM7,
+	SMS_CODING_SCHEME_UCS2
+} SmsCodingScheme;
+
+static SmsCodingScheme sms_get_coding_scheme(int dataCoding)
+{
+	switch (dataCoding >> 4) {
+	case 0x00:
+	case 0x02:
+	case 0x03:
+		return SMS_CODING_SCHEME_GSM7;
+	case 0x01:
+		if (dataCoding == 0x10)
+			return SMS_CODING_SCHEME_GSM7;
+		if (dataCoding == 0x11)
+			return SMS_CODING_SCHEME_UCS2;
+		break;
+	case 0x04:
+	case 0x05:
+	case 0x06:
+	case 0x07:
+		if (dataCoding & 0x20)
+			return SMS_CODING_SCHEME_UNKNOWN;
+		if (((dataCoding >> 2) & 3) == 0)
+			return SMS_CODING_SCHEME_GSM7;
+		if (((dataCoding >> 2) & 3) == 2)
+			return SMS_CODING_SCHEME_UCS2;
+		break;
+	case 0xF:
+		if (!(dataCoding & 4))
+			return SMS_CODING_SCHEME_GSM7;
+		break;
+	}
+	return SMS_CODING_SCHEME_UNKNOWN;
+}
+
 void ipc_ss_ussd(struct ipc_message_info *info)
 {
 	char *data_dec = NULL;
 	int data_dec_len = 0;
+	SmsCodingScheme codingScheme;
 
 	char *message[2];
 
@@ -187,8 +226,9 @@ void ipc_ss_ussd(struct ipc_message_info *info)
 	ril_state.ussd_state = ussd->state;
 
 	if(ussd->length > 0 && info->length > 0 && info->data != NULL) {
-		switch(ussd->dcs) {
-			case 0x0f:
+		codingScheme = sms_get_coding_scheme(ussd->dcs);
+		switch(codingScheme) {
+			case SMS_CODING_SCHEME_GSM7:
 				LOGD("USSD Rx encoding is GSM7");
 
 				data_dec_len = gsm72ascii(info->data
@@ -197,14 +237,14 @@ void ipc_ss_ussd(struct ipc_message_info *info)
 				message[1][data_dec_len] = '\0';
 
 				break;
-			case 0x48:
-				LOGD("USSD Rx encoding is UCS2",	ussd->dcs);
+			case SMS_CODING_SCHEME_UCS2:
+				LOGD("USSD Rx encoding %x is UCS2", ussd->dcs);
 
 				data_dec_len = info->length - sizeof(struct ipc_ss_ussd);
 				message[1] = malloc(data_dec_len * 4 + 1);
 
 				int i, result = 0;
-				char *ucs2 = info->data + sizeof(struct ipc_ss_ussd);
+				char *ucs2 = (char*)info->data + sizeof(struct ipc_ss_ussd);
 				for (i = 0; i < data_dec_len; i += 2) {
 					int c = (ucs2[i] << 8) | ucs2[1 + i];
 					result += utf8_write(message[1], result, c);
