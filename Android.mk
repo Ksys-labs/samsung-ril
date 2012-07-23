@@ -41,7 +41,7 @@ LOCAL_SRC_FILES := \
 	rfs.c
 
 LOCAL_SHARED_LIBRARIES := \
-	libcutils libutils libril
+	libcutils libutils libril liblog
 
 LOCAL_STATIC_LIBRARIES := libsamsung-ipc
 
@@ -100,7 +100,7 @@ LOCAL_PRELINK_MODULE := false
 ifeq (foo,foo)
 	# build shared library
 	LOCAL_SHARED_LIBRARIES += \
-		libcutils libnetutils libutils
+		libcutils libnetutils libutils liblog
 	LOCAL_LDLIBS += -lpthread
 	LOCAL_CFLAGS += -DRIL_SHLIB
 	LOCAL_MODULE:= libsamsung-ril

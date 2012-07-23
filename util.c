@@ -25,6 +25,8 @@
 #include <utils/Log.h>
 #include "util.h"
 
+#include "samsung-ril.h"
+
 /**
  * Converts a hexidecimal string to binary
  */
