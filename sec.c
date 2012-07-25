@@ -191,7 +191,7 @@ void ipc2ril_card_status(struct ipc_sec_pin_status_response *pin_status, RIL_Car
 void ril_tokens_pin_status_dump(void)
 {
 	LOGD("ril_tokens_pin_status_dump:\n\
-	\tril_state.tokens.pin_status = 0x%x\n", ril_state.tokens.pin_status);
+	\tril_state.tokens.pin_status = 0x%p\n", ril_state.tokens.pin_status);
 }
 
 /**

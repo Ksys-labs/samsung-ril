@@ -27,7 +27,7 @@
 #include <telephony/ril.h>
 #include <radio.h>
 
-#include <cutils/log.h>
+#include <utils/Log.h>
 
 #ifndef LOGE
 	#define LOGE ALOGE
@@ -276,6 +276,7 @@ void ril_request_enter_sim_pin(RIL_Token t, void *data, size_t datalen);
 void ril_request_change_sim_pin(RIL_Token t, void *data, size_t datalen);
 void ril_request_enter_sim_puk(RIL_Token t, void *data, size_t datalen);
 void ril_request_query_facility_lock(RIL_Token t, void *data, size_t datalen);
+void ipc_sec_phone_lock(struct ipc_message_info *info);
 void ipc_sec_phone_lock_complete(struct ipc_message_info *info);
 void ril_request_set_facility_lock(RIL_Token t, void *data, size_t datalen);
 

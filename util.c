@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 #define LOG_TAG "RIL-UTIL"
 #include <utils/Log.h>

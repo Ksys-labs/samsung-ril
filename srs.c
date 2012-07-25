@@ -69,7 +69,8 @@ int srs_server_send_message(struct srs_server *srs_server, struct srs_message *m
 	memset(data, 0, header.length);
 
 	memcpy(data, &header, sizeof(header));
-	memcpy((void *) (data + sizeof(header)), message->data, message->data_len);
+	memcpy((void *) ((char*)data + sizeof(header)),
+		message->data, message->data_len);
 
 	FD_ZERO(&fds);
 	FD_SET(srs_server->client_fd, &fds);
@@ -107,7 +108,7 @@ int srs_server_recv(struct srs_server *srs_server, struct srs_message *message)
 	int rc;
 
 	rc = read(srs_server->client_fd, raw_data, SRS_DATA_MAX_SIZE);
-	if(rc < sizeof(struct srs_header)) {
+	if(rc < (int)sizeof(struct srs_header)) {
 		return -1;
 	}
 
@@ -117,7 +118,8 @@ int srs_server_recv(struct srs_server *srs_server, struct srs_message *message)
 	message->data_len = header->length - sizeof(struct srs_header);
 	message->data = malloc(message->data_len);
 
-	memcpy(message->data, raw_data + sizeof(struct srs_header), message->data_len);
+	memcpy(message->data, (char*)raw_data + sizeof(struct srs_header),
+		message->data_len);
 
 	free(raw_data);
 
@@ -134,7 +136,8 @@ int srs_server_accept(struct srs_server *srs_server)
 		return 0;
 	}
 
-	client_fd = accept(srs_server->server_fd, (struct sockaddr_un *) &client_addr, &client_addr_len);
+	client_fd = accept(srs_server->server_fd,
+		(struct sockaddr*) &client_addr, &client_addr_len);
 
 	if(client_fd > 0) {
 		srs_server->client_fd = client_fd;

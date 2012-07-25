@@ -61,9 +61,7 @@ void ril_request_send_ussd(RIL_Token t, void *data, size_t datalen)
 		case IPC_SS_USSD_TIME_OUT:
 			LOGD("USSD Tx encoding is GSM7");
 
-			data_enc_len = ascii2gsm7(data, &data_enc, datalen);
-			// message_size = data_enc_len + sizeof(struct ipc_ss_ussd);
-
+			data_enc_len = ascii2gsm7(data, (unsigned char**)&data_enc, datalen);
 			if(data_enc_len > message_size) {
 				LOGE("USSD message size is too long, aborting");
 				RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -90,8 +88,7 @@ void ril_request_send_ussd(RIL_Token t, void *data, size_t datalen)
 		default:
 			LOGD("USSD Tx encoding is ASCII");
 
-			data_enc_len = asprintf(&data_enc, "%s", data);
-			// message_size = data_enc_len + sizeof(struct ipc_ss_ussd);
+			data_enc_len = asprintf(&data_enc, "%s", (char*)data);
 
 			if(data_enc_len > message_size) {
 				LOGE("USSD message size is too long, aborting");
