@@ -795,10 +795,14 @@ void ril_request_query_network_selection_mode(RIL_Token t)
 
 void ipc_net_plmn_sel(struct ipc_message_info *info)
 {
-	struct ipc_net_plmn_sel_get *plmn_sel = (struct ipc_net_plmn_sel_get *) info->data;
-	int ril_mode = ipc2ril_plmn_sel(plmn_sel->plmn_sel);
+	struct ipc_net_plmn_sel_get *plmn_sel;
+	int ril_mode;
 
-	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ril_mode, sizeof(int));
+	if (info->data != NULL && info->length >= sizeof(struct ipc_net_plmn_sel_get)) {
+		plmn_sel = (struct ipc_net_plmn_sel_get *) info->data;
+		ril_mode = ipc2ril_plmn_sel(plmn_sel->plmn_sel);
+		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ril_mode, sizeof(int));
+	}
 }
 
 void ipc_net_plmn_sel_complete(struct ipc_message_info *info)
