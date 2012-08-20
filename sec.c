@@ -83,12 +83,13 @@ void ril_state_update(SIM_Status status)
 	/* If power mode isn't at least normal, don't update RIL state */
 	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
-
+	
 	ril_state.sim_status = status;
 
 	switch(status) {
 		case SIM_READY:
-			radio_state = RADIO_STATE_SIM_READY;
+			radio_state = RADIO_STATE_ON;
+			//radio_state = RADIO_STATE_SIM_READY;
 			break;
 		case SIM_NOT_READY:
 			radio_state = RADIO_STATE_SIM_NOT_READY;
@@ -107,6 +108,7 @@ void ril_state_update(SIM_Status status)
 			radio_state = RADIO_STATE_SIM_NOT_READY;
 			break;
 	}
+	
 
 	ril_state.radio_state = radio_state;
 
