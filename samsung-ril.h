@@ -27,20 +27,7 @@
 #include <telephony/ril.h>
 #include <radio.h>
 
-#include <utils/Log.h>
-
-#ifndef LOGE
-	#define LOGE ALOGE
-#endif
-
-#ifndef LOGI
-	#define LOGI ALOGI
-#endif
-
-#ifndef LOGD
-	#define LOGD ALOGD
-#endif
-
+#include "compat.h"
 #include "ipc.h"
 #include "srs.h"
 
