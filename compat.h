@@ -45,6 +45,9 @@
 	#define RIL_CardStatus RIL_CardStatus_v6
 	#define RIL_SIM_IO RIL_SIM_IO_v6
 	#define RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED
+	#define COMPAT_RADIO_STATE_ON RADIO_STATE_ON
+#else
+	#define COMPAT_RADIO_STATE_ON RADIO_STATE_SIM_READY
 #endif
 
 //set it to the maximum supported revision

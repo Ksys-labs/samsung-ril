@@ -697,7 +697,7 @@ void ipc_sms_deliver_report(struct ipc_message_info *info)
 
 void ipc_sms_device_ready(struct ipc_message_info *info)
 {
-	if(ril_state.radio_state == RADIO_STATE_ON) {
+	if(ril_state.radio_state == COMPAT_RADIO_STATE_ON) {
 		ipc_fmt_send(IPC_SMS_DEVICE_READY, IPC_TYPE_SET, NULL, 0, info->aseq);
 	}
 

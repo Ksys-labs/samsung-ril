@@ -88,8 +88,7 @@ void ril_state_update(SIM_Status status)
 
 	switch(status) {
 		case SIM_READY:
-			radio_state = RADIO_STATE_ON;
-			//radio_state = RADIO_STATE_SIM_READY;
+			radio_state = COMPAT_RADIO_STATE_ON;
 			break;
 		case SIM_NOT_READY:
 			radio_state = RADIO_STATE_SIM_NOT_READY;
