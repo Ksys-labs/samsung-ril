@@ -30,7 +30,8 @@ void ril_request_get_imei_send(RIL_Token t)
 	unsigned char data;
 
 	data = IPC_MISC_ME_SN_SERIAL_NUM;
-	ipc_fmt_send(IPC_MISC_ME_SN, IPC_TYPE_GET, (unsigned char *) &data, sizeof(data), reqGetId(t));
+	ipc_fmt_send(IPC_MISC_ME_SN, IPC_TYPE_GET,
+		(unsigned char *) &data, sizeof(data), reqGetId(t));
 }
 
 void ril_request_get_imei(RIL_Token t)
@@ -44,7 +45,7 @@ void ril_request_get_imei(RIL_Token t)
 	ril_state.tokens.get_imei = t;
 
 	if(ril_state.tokens.get_imeisv) {
-		LOGD("IMEISV token found: 0x%x", ril_state.tokens.get_imeisv);
+		LOGD("IMEISV token found: 0x%p", ril_state.tokens.get_imeisv);
 
 		if(ril_state.radio_state != RADIO_STATE_OFF) {
 			ril_request_get_imei_send(ril_state.tokens.get_imei);
@@ -67,7 +68,7 @@ void ril_request_get_imeisv(RIL_Token t)
 	ril_state.tokens.get_imeisv = t;
 
 	if(ril_state.tokens.get_imei) {
-		LOGD("IMEI token found: 0x%x", ril_state.tokens.get_imei);
+		LOGD("IMEI token found: 0x%p", ril_state.tokens.get_imei);
 
 		if(ril_state.radio_state != RADIO_STATE_OFF) {
 			ril_request_get_imei_send(ril_state.tokens.get_imei);
@@ -88,7 +89,8 @@ void ipc_misc_me_sn_imei(RIL_Token t, void *data, int length)
 	imei_info = (struct ipc_misc_me_sn *) data;
 
 	if(ril_state.tokens.get_imei != t) 
-		LOGE("IMEI tokens mismatch (0x%x and 0x%x)", ril_state.tokens.get_imei, t);
+		LOGE("IMEI tokens mismatch (0x%p and 0x%p)",
+			ril_state.tokens.get_imei, t);
 
 	if(imei_info->length > 32)
 		return;
@@ -108,13 +110,15 @@ void ipc_misc_me_sn_imei(RIL_Token t, void *data, int length)
 
 	// IMEI
 	if(ril_state.tokens.get_imei) {
-		RIL_onRequestComplete(ril_state.tokens.get_imei, RIL_E_SUCCESS, imei, sizeof(char *));
+		RIL_onRequestComplete(ril_state.tokens.get_imei,
+			RIL_E_SUCCESS, imei, sizeof(char *));
 		ril_state.tokens.get_imei = 0;
 	}
 
 	// IMEI SV
 	if(ril_state.tokens.get_imeisv) {
-		RIL_onRequestComplete(ril_state.tokens.get_imeisv, RIL_E_SUCCESS, imeisv, sizeof(char *));
+		RIL_onRequestComplete(ril_state.tokens.get_imeisv,
+			RIL_E_SUCCESS, imeisv, sizeof(char *));
 		ril_state.tokens.get_imeisv = 0;
 	}
 }
@@ -128,7 +132,8 @@ void ipc_misc_me_sn(struct ipc_message_info *info)
 			ipc_misc_me_sn_imei(reqGetToken(info->aseq), info->data, info->length);
 			break;
 		case IPC_MISC_ME_SN_SERIAL_NUM_SERIAL:
-			LOGD("Got IPC_MISC_ME_SN_SERIAL_NUM_SERIAL: %s\n", me_sn_info->data);
+			LOGD("Got IPC_MISC_ME_SN_SERIAL_NUM_SERIAL: %s\n",
+				me_sn_info->data);
 			break;
 	}
 }
@@ -147,18 +152,22 @@ void ril_request_baseband_version(RIL_Token t)
 	if(ril_state.radio_state != RADIO_STATE_OFF) {
 		data = 0xff;
 
-		ipc_fmt_send(IPC_MISC_ME_VERSION, IPC_TYPE_GET, (unsigned char *) &data, sizeof(data), reqGetId(t));
+		ipc_fmt_send(IPC_MISC_ME_VERSION, IPC_TYPE_GET,
+			(unsigned char *) &data, sizeof(data), reqGetId(t));
 	}
 }
 
 void ipc_misc_me_version(struct ipc_message_info *info)
 {
 	char sw_version[33];
-	struct ipc_misc_me_version *version = (struct ipc_misc_me_version *) info->data;
+	struct ipc_misc_me_version *version =
+		(struct ipc_misc_me_version *) info->data;
 	RIL_Token t = reqGetToken(info->aseq);
 
 	if(ril_state.tokens.baseband_version != t) 
-		LOGE("Baseband tokens mismatch (0x%x and 0x%x)", ril_state.tokens.baseband_version, t);
+		LOGE("Baseband tokens mismatch (0x%p and 0x%p)",
+			ril_state.tokens.baseband_version, t);
+	
 
 	memcpy(sw_version, version->sw_version, 32);
 	sw_version[32] = '\0';
@@ -195,7 +204,8 @@ void ipc_misc_me_imsi(struct ipc_message_info *info)
 
 	if(info->length < 1) {
 		LOGE("%s: zero data length", __FUNCTION__);
-		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
+		RIL_onRequestComplete(reqGetToken(info->aseq),
+			RIL_E_GENERIC_FAILURE, NULL, 0);
 		return;
 	}
 
@@ -203,7 +213,8 @@ void ipc_misc_me_imsi(struct ipc_message_info *info)
 
 	if(((int) info->length) < *imsi_length + 1) {
 		LOGE("%s: missing IMSI data", __FUNCTION__);
-		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_GENERIC_FAILURE, NULL, 0);
+		RIL_onRequestComplete(reqGetToken(info->aseq),
+			RIL_E_GENERIC_FAILURE, NULL, 0);
 		return;
 	}
 
@@ -212,7 +223,8 @@ void ipc_misc_me_imsi(struct ipc_message_info *info)
 	memcpy(imsi, ((unsigned char*) info->data) + 1, *imsi_length);
 	imsi[*imsi_length] = '\0';
 
-	RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, imsi, *imsi_length+1);
+	RIL_onRequestComplete(reqGetToken(info->aseq),
+		RIL_E_SUCCESS, imsi, *imsi_length+1);
 }
 
 void ipc_misc_time_info(struct ipc_message_info *info)
@@ -221,7 +233,9 @@ void ipc_misc_time_info(struct ipc_message_info *info)
 	char str[128];
 
 	sprintf(str, "%02u/%02u/%02u,%02u:%02u:%02u+%02d,%02d",
-		nitz->year, nitz->mon, nitz->day, nitz->hour, nitz->min, nitz->sec, nitz->tz, 0);
+		nitz->year, nitz->mon, nitz->day, nitz->hour,
+		nitz->min, nitz->sec, nitz->tz, 0);
 
-	RIL_onUnsolicitedResponse(RIL_UNSOL_NITZ_TIME_RECEIVED, str, strlen(str) + 1);
+	RIL_onUnsolicitedResponse(RIL_UNSOL_NITZ_TIME_RECEIVED,
+		str, strlen(str) + 1);
 }

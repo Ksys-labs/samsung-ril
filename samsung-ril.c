@@ -541,7 +541,7 @@ void ril_state_lpm(void)
 
 
 static const RIL_RadioFunctions ril_ops = {
-	RIL_VERSION,
+	SAMSUNG_RIL_VERSION,
 	onRequest,
 	currentState,
 	onSupports,

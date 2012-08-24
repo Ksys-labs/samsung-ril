@@ -41,7 +41,7 @@ LOCAL_SRC_FILES := \
 	rfs.c
 
 LOCAL_SHARED_LIBRARIES := \
-	libcutils libutils libril
+	libcutils libutils libril liblog
 
 LOCAL_STATIC_LIBRARIES := libsamsung-ipc
 
@@ -58,6 +58,11 @@ ifeq ($(TARGET_DEVICE),galaxysmtd)
 	samsung-ipc_device := aries
 endif
 
+ifeq ($(TARGET_DEVICE),galaxys2)
+	LOCAL_CFLAGS += -DDEVICE_IPC_V4
+	samsung-ipc_device := galaxys2
+endif
+
 ifeq ($(TARGET_DEVICE),galaxytab)
 	LOCAL_CFLAGS += -DDEVICE_IPC_V4
 	samsung-ipc_device := aries
@@ -65,6 +70,11 @@ endif
 
 ifeq ($(TARGET_DEVICE),h1)
 	LOCAL_CFLAGS += -DDEVICE_H1
+endif
+
+ifeq ($(TARGET_DEVICE),maguro)
+	LOCAL_CFLAGS += -DDEVICE_IPC_V4
+	samsung-ipc_device := maguro
 endif
 
 LOCAL_C_INCLUDES := external/libsamsung-ipc/include
@@ -78,7 +88,7 @@ LOCAL_PRELINK_MODULE := false
 ifeq (foo,foo)
 	# build shared library
 	LOCAL_SHARED_LIBRARIES += \
-		libcutils libnetutils libutils
+		libcutils libnetutils libutils liblog
 	LOCAL_LDLIBS += -lpthread
 	LOCAL_CFLAGS += -DRIL_SHLIB
 	LOCAL_MODULE:= libsamsung-ril

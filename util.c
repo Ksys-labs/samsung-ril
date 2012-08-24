@@ -20,9 +20,13 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 #define LOG_TAG "RIL-UTIL"
 #include <utils/Log.h>
+#include "util.h"
+
+#include "samsung-ril.h"
 
 /**
  * Converts a hexidecimal string to binary
@@ -134,6 +138,9 @@ int ascii2gsm7(char *data, unsigned char **data_enc, int length)
 	enc_length = ((length * 7) - (length * 7) % 8) / 8;
 	enc_length += (length * 7) % 8 > 0 ? 1 : 0;
 
+	//FIXME: why does samsung does that?
+	enc_length++;
+
 	enc = malloc(enc_length);
 	memset(enc, 0, enc_length);
 
@@ -159,6 +166,10 @@ int ascii2gsm7(char *data, unsigned char **data_enc, int length)
 	}
 
 	*data_enc = enc;
+
+	//FIXME: what is going on here?
+	enc[enc_length - 2] |= 0x30;
+	enc[enc_length - 1] = 0x02;
 	
 	return enc_length;
 }
@@ -216,3 +227,73 @@ void hex_dump(void *data, int size)
 		LOGD("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
 	}
 }
+
+/* writes the utf8 character encoded in v
+ * to the buffer utf8 at the specified offset
+ */
+int utf8_write(char *utf8, int offset, int v)
+{
+
+	int result;
+
+	if (v < 0x80) {
+		result = 1;
+		if (utf8)
+			utf8[offset] = (char)v;
+	} else if (v < 0x800) {
+		result = 2;
+		if (utf8) {
+			utf8[offset + 0] = (char)(0xc0 | (v >> 6));
+			utf8[offset + 1] = (char)(0x80 | (v & 0x3f));
+		}
+	} else if (v < 0x10000) {
+		result = 3;
+		if (utf8) {
+			utf8[offset + 0] = (char)(0xe0 | (v >> 12));
+			utf8[offset + 1] = (char)(0x80 | ((v >> 6) & 0x3f));
+			utf8[offset + 2] = (char)(0x80 | (v & 0x3f));
+		}
+	} else {
+		result = 4;
+		if (utf8) {
+			utf8[offset + 0] = (char)(0xf0 | ((v >> 18) & 0x7));
+			utf8[offset + 1] = (char)(0x80 | ((v >> 12) & 0x3f));
+			utf8[offset + 2] = (char)(0x80 | ((v >> 6) & 0x3f));
+			utf8[offset + 3] = (char)(0x80 | (v & 0x3f));
+		}
+	}
+	return result;
+}
+
+SmsCodingScheme sms_get_coding_scheme(int dataCoding)
+{
+	switch (dataCoding >> 4) {
+	case 0x00:
+	case 0x02:
+	case 0x03:
+		return SMS_CODING_SCHEME_GSM7;
+	case 0x01:
+		if (dataCoding == 0x10)
+			return SMS_CODING_SCHEME_GSM7;
+		if (dataCoding == 0x11)
+			return SMS_CODING_SCHEME_UCS2;
+		break;
+	case 0x04:
+	case 0x05:
+	case 0x06:
+	case 0x07:
+		if (dataCoding & 0x20)
+			return SMS_CODING_SCHEME_UNKNOWN;
+		if (((dataCoding >> 2) & 3) == 0)
+			return SMS_CODING_SCHEME_GSM7;
+		if (((dataCoding >> 2) & 3) == 2)
+			return SMS_CODING_SCHEME_UCS2;
+		break;
+	case 0xF:
+		if (!(dataCoding & 4))
+			return SMS_CODING_SCHEME_GSM7;
+		break;
+	}
+	return SMS_CODING_SCHEME_UNKNOWN;
+}
+

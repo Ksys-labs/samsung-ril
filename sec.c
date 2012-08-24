@@ -83,12 +83,12 @@ void ril_state_update(SIM_Status status)
 	/* If power mode isn't at least normal, don't update RIL state */
 	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
-
+	
 	ril_state.sim_status = status;
 
 	switch(status) {
 		case SIM_READY:
-			radio_state = RADIO_STATE_SIM_READY;
+			radio_state = COMPAT_RADIO_STATE_ON;
 			break;
 		case SIM_NOT_READY:
 			radio_state = RADIO_STATE_SIM_NOT_READY;
@@ -107,6 +107,7 @@ void ril_state_update(SIM_Status status)
 			radio_state = RADIO_STATE_SIM_NOT_READY;
 			break;
 	}
+	
 
 	ril_state.radio_state = radio_state;
 
@@ -191,7 +192,7 @@ void ipc2ril_card_status(struct ipc_sec_pin_status_response *pin_status, RIL_Car
 void ril_tokens_pin_status_dump(void)
 {
 	LOGD("ril_tokens_pin_status_dump:\n\
-	\tril_state.tokens.pin_status = 0x%x\n", ril_state.tokens.pin_status);
+	\tril_state.tokens.pin_status = 0x%p\n", ril_state.tokens.pin_status);
 }
 
 /**

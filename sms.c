@@ -229,7 +229,7 @@ void ril_request_sms_lock_release(void)
  */
 void ril_request_send_sms(RIL_Token t, void *data, size_t datalen)
 {
-	const char **request = (char **) data;
+	char **request = (char **) data;
 	char *pdu = request[1];
 	int pdu_len = pdu != NULL ? strlen(pdu) : 0;
 	char *smsc = request[0];
@@ -372,7 +372,7 @@ void ril_request_send_sms_complete(RIL_Token t, char *pdu, char *smsc)
 	LOGD("data_len is 0x%x + 0x%x + 0x%x = 0x%x\n", pdu_dec_len, smsc_len, send_msg_len, data_len);
 
 	pdu_dec = malloc(pdu_dec_len);
-	hex2bin(pdu, pdu_len, pdu_dec);
+	hex2bin(pdu, pdu_len, (unsigned char*)pdu_dec);
 
 	/* PDU operations */
 	int pdu_tp_da_index = 2;
@@ -697,7 +697,7 @@ void ipc_sms_deliver_report(struct ipc_message_info *info)
 
 void ipc_sms_device_ready(struct ipc_message_info *info)
 {
-	if(ril_state.radio_state == RADIO_STATE_SIM_READY) {
+	if(ril_state.radio_state == COMPAT_RADIO_STATE_ON) {
 		ipc_fmt_send(IPC_SMS_DEVICE_READY, IPC_TYPE_SET, NULL, 0, info->aseq);
 	}
 

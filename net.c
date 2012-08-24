@@ -217,9 +217,9 @@ int ril_tokens_net_get_data_waiting(void)
 void ril_tokens_net_state_dump(void)
 {
 	LOGD("ril_tokens_net_state_dump:\n\
-	\tril_state.tokens.registration_state = 0x%x\n\
-	\tril_state.tokens.gprs_registration_state = 0x%x\n\
-	\tril_state.tokens.operator = 0x%x\n", ril_state.tokens.registration_state, ril_state.tokens.gprs_registration_state, ril_state.tokens.operator);
+	\tril_state.tokens.registration_state = 0x%p\n\
+	\tril_state.tokens.gprs_registration_state = 0x%p\n\
+	\tril_state.tokens.operator = 0x%p\n", ril_state.tokens.registration_state, ril_state.tokens.gprs_registration_state, ril_state.tokens.operator);
 }
 
 void ril_plmn_split(char *plmn_data, char **plmn, unsigned int *mcc, unsigned int *mnc)
@@ -323,7 +323,7 @@ void ril_plmn_string(char *plmn_data, char *response[3])
 void ril_request_operator(RIL_Token t)
 {
 	char *response[3];
-	int i;
+	size_t i;
 
 	// IPC_NET_REGISTRATION_STATE_ROAMING is the biggest valid value
 	if(ril_state.netinfo.reg_state == IPC_NET_REGISTRATION_STATE_NONE ||
@@ -388,7 +388,7 @@ void ipc_net_current_plmn(struct ipc_message_info *message)
 	struct ipc_net_current_plmn *plmndata = (struct ipc_net_current_plmn *) message->data;
 
 	char *response[3];
-	int i;
+	size_t i;
 
 	switch(message->type) {
 		case IPC_TYPE_NOTI:
@@ -528,7 +528,7 @@ void ril_request_gprs_registration_state(RIL_Token t)
 {
 	struct ipc_net_regist_get regist_req;
 	char *response[4];
-	int i;
+	size_t i;
 
 	if(ril_state.tokens.gprs_registration_state == RIL_TOKEN_DATA_WAITING) {
 		LOGD("Got RILJ request for UNSOL data");
@@ -621,7 +621,7 @@ void ipc_net_regist_unsol(struct ipc_message_info *message)
 void ipc_net_regist_sol(struct ipc_message_info *message)
 {
 	char *response[4];
-	int i;
+	size_t i;
 
 	struct ipc_net_regist *netinfo = (struct ipc_net_regist *) message->data;
 	RIL_Token t = reqGetToken(message->aseq);
@@ -798,11 +798,16 @@ void ipc_net_plmn_sel(struct ipc_message_info *info)
 	struct ipc_net_plmn_sel_get *plmn_sel;
 	int ril_mode;
 
-	if (info->data != NULL && info->length >= sizeof(struct ipc_net_plmn_sel_get)) {
-		plmn_sel = (struct ipc_net_plmn_sel_get *) info->data;
-		ril_mode = ipc2ril_plmn_sel(plmn_sel->plmn_sel);
-		RIL_onRequestComplete(reqGetToken(info->aseq), RIL_E_SUCCESS, &ril_mode, sizeof(int));
-	}
+	if (!info)
+		return;
+	
+	if (!info->data || info->length < sizeof(struct ipc_net_plmn_sel_get))
+		return;
+	
+	plmn_sel = (struct ipc_net_plmn_sel_get *) info->data;
+	ril_mode = ipc2ril_plmn_sel(plmn_sel->plmn_sel);
+	RIL_onRequestComplete(reqGetToken(info->aseq),
+		RIL_E_SUCCESS, &ril_mode, sizeof(int));
 }
 
 void ipc_net_plmn_sel_complete(struct ipc_message_info *info)

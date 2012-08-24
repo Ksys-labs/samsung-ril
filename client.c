@@ -129,7 +129,7 @@ void *ril_client_thread(void *data)
 		return 0;
 	}
 
-	client = (struct ipc_client *) data;
+	client = (struct ril_client *) data;
 
 	for(c = 5 ; c > 0 ; c--) {
 		client->state = RIL_CLIENT_READY;

@@ -61,9 +61,7 @@ void ril_request_send_ussd(RIL_Token t, void *data, size_t datalen)
 		case IPC_SS_USSD_TIME_OUT:
 			LOGD("USSD Tx encoding is GSM7");
 
-			data_enc_len = ascii2gsm7(data, &data_enc, datalen);
-			// message_size = data_enc_len + sizeof(struct ipc_ss_ussd);
-
+			data_enc_len = ascii2gsm7(data, (unsigned char**)&data_enc, datalen);
 			if(data_enc_len > message_size) {
 				LOGE("USSD message size is too long, aborting");
 				RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
@@ -90,8 +88,7 @@ void ril_request_send_ussd(RIL_Token t, void *data, size_t datalen)
 		default:
 			LOGD("USSD Tx encoding is ASCII");
 
-			data_enc_len = asprintf(&data_enc, "%s", data);
-			// message_size = data_enc_len + sizeof(struct ipc_ss_ussd);
+			data_enc_len = asprintf(&data_enc, "%s", (char*)data);
 
 			if(data_enc_len > message_size) {
 				LOGE("USSD message size is too long, aborting");
@@ -172,13 +169,14 @@ void ipc_ss_ussd(struct ipc_message_info *info)
 {
 	char *data_dec = NULL;
 	int data_dec_len = 0;
+	SmsCodingScheme codingScheme;
 
 	char *message[2];
 
 	struct ipc_ss_ussd *ussd = NULL;
 	unsigned char state;
 
-	memset(message, 0, sizeof(message) / sizeof(char *));	
+	memset(message, 0, sizeof(message));
 
 	ussd = (struct ipc_ss_ussd *) info->data;
 
@@ -187,17 +185,34 @@ void ipc_ss_ussd(struct ipc_message_info *info)
 	ril_state.ussd_state = ussd->state;
 
 	if(ussd->length > 0 && info->length > 0 && info->data != NULL) {
-		switch(ussd->dcs) {
-			case 0x0f:
+		codingScheme = sms_get_coding_scheme(ussd->dcs);
+		switch(codingScheme) {
+			case SMS_CODING_SCHEME_GSM7:
 				LOGD("USSD Rx encoding is GSM7");
 
-				data_dec_len = gsm72ascii(info->data + sizeof(struct ipc_ss_ussd), &data_dec, info->length - sizeof(struct ipc_ss_ussd));
+				data_dec_len = gsm72ascii(info->data
+					+ sizeof(struct ipc_ss_ussd), &data_dec, info->length - sizeof(struct ipc_ss_ussd));
 				asprintf(&message[1], "%s", data_dec);
 				message[1][data_dec_len] = '\0';
 
 				break;
+			case SMS_CODING_SCHEME_UCS2:
+				LOGD("USSD Rx encoding %x is UCS2", ussd->dcs);
+
+				data_dec_len = info->length - sizeof(struct ipc_ss_ussd);
+				message[1] = malloc(data_dec_len * 4 + 1);
+
+				int i, result = 0;
+				char *ucs2 = (char*)info->data + sizeof(struct ipc_ss_ussd);
+				for (i = 0; i < data_dec_len; i += 2) {
+					int c = (ucs2[i] << 8) | ucs2[1 + i];
+					result += utf8_write(message[1], result, c);
+				}
+				message[1][result] = '\0';
+				break;
 			default:
-				LOGD("USSD Rx encoding is unknown, assuming ASCII");
+				LOGD("USSD Rx encoding %x is unknown, assuming ASCII",
+					ussd->dcs);
 
 				data_dec_len = info->length - sizeof(struct ipc_ss_ussd);
 				asprintf(&message[1], "%s", info->data + sizeof(struct ipc_ss_ussd));
