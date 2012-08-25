@@ -25,7 +25,10 @@
 #define LOG_TAG "RIL-GPRS"
 #include <utils/Log.h>
 #include <cutils/properties.h>
+
+#if RIL_VERSION >= 6
 #include <netutils/ifc.h>
+#endif
 
 #include "samsung-ril.h"
 #include "util.h"
@@ -512,8 +515,14 @@ int ipc_gprs_connection_enable(struct ril_gprs_connection *gprs_connection,
 			"gateway:%s, subnet_mask:%s, dns1:%s, dns2:%s",
 		interface, ip, gateway, subnet_mask, dns1, dns2);
 
+	int subnet_addr = inet_addr(subnet_mask);
+	#if RIL_VERSION >= 6
+		subnet_addr = ipv4NetmaskToPrefixLength(subnet_addr);
+	#endif
+
 	rc = ifc_configure(interface, inet_addr(ip),
-		ipv4NetmaskToPrefixLength(inet_addr(subnet_mask)), inet_addr(gateway),
+		subnet_addr,
+		inet_addr(gateway),
 		inet_addr(dns1), inet_addr(dns2));
 
 	if(rc < 0) {
@@ -530,12 +539,12 @@ int ipc_gprs_connection_enable(struct ril_gprs_connection *gprs_connection,
 	snprintf(prop_name, PROPERTY_KEY_MAX, "net.%s.gw", interface);
 	property_set(prop_name, gateway);
 
-	setup_data_call_response->status = 0;
 	setup_data_call_response->cid = gprs_connection->cid;
 	setup_data_call_response->active = 1;
 	setup_data_call_response->type = strdup("IP");
 
 #if RIL_VERSION >= 6
+	setup_data_call_response->status = 0;
 	setup_data_call_response->ifname = interface;
 	setup_data_call_response->addresses = ip;
 	setup_data_call_response->gateways = gateway;
@@ -810,7 +819,6 @@ void ipc_gprs_pdp_context(struct ipc_message_info *info)
 	int i;
 
 	for(i=0 ; i < IPC_GPRS_PDP_CONTEXT_GET_DESC_COUNT ; i++) {
-		data_call_list[i].status = 0;
 		data_call_list[i].cid = context->desc[i].cid;
 		data_call_list[i].active =
 			ipc2ril_gprs_connection_active(context->desc[i].state);
