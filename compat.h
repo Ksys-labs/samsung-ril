@@ -54,6 +54,10 @@
 
 //set it to the maximum supported revision
 //we've not yet fully implemented version 7
-#define SAMSUNG_RIL_VERSION 6
+#if RIL_VERSION >= 6
+	#define SAMSUNG_RIL_VERSION 6
+#else
+	#define SAMSUNG_RIL_VERSION RIL_VERSION
+#endif
 
 #endif //__COMPAT_H__
