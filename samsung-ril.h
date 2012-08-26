@@ -200,7 +200,7 @@ int ril_modem_check(void);
 
 void ipc_fmt_dispatch(struct ipc_message_info *info);
 void ipc_rfs_dispatch(struct ipc_message_info *info);
-void srs_dispatch(struct srs_message *message);
+void srs_dispatch(int fd, struct srs_message *message);
 
 /* GEN */
 

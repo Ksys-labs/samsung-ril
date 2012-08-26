@@ -34,27 +34,7 @@
 #include "samsung-ril.h"
 #include "util.h"
 
-struct srs_server *srs_server_new(void)
-{
-	struct srs_server *srs_server;
-
-	srs_server = malloc(sizeof(struct srs_server));
-	memset(srs_server, 0, sizeof(struct srs_server));
-	srs_server->server_fd = -1;
-	srs_server->client_fd = -1;
-
-	return srs_server;
-}
-
-void srs_server_free(struct srs_server *srs_server)
-{
-	if(srs_server == NULL)
-		return;
-
-	free(srs_server);
-}
-
-int srs_server_send_message(struct srs_server *srs_server, struct srs_message *message)
+static int srs_server_send_message(int client_fd, struct srs_message *message)
 {
 	fd_set fds;
 
@@ -73,41 +53,39 @@ int srs_server_send_message(struct srs_server *srs_server, struct srs_message *m
 		message->data, message->data_len);
 
 	FD_ZERO(&fds);
-	FD_SET(srs_server->client_fd, &fds);
+	FD_SET(client_fd, &fds);
 
 	select(FD_SETSIZE, NULL, &fds, NULL, NULL);
 
-	write(srs_server->client_fd, data, header.length);
+	write(client_fd, data, header.length);
 
 	free(data);
 
 	return 0;
 }
 
-int srs_server_send(unsigned short command, void *data, int data_len)
+static int srs_server_send(int fd, unsigned short command, void *data,
+	int data_len)
 {
-	struct srs_server *srs_server;
 	struct srs_message message;
 	int rc;
-
-	srs_server = (struct srs_server *) (srs_client->object);
 
 	message.command = command;
 	message.data = data;
 	message.data_len = data_len;
 
-	rc = srs_server_send_message(srs_server, &message);
+	rc = srs_server_send_message(fd, &message);
 
 	return rc;
 }
 
-int srs_server_recv(struct srs_server *srs_server, struct srs_message *message)
+static int srs_server_recv(int client_fd, struct srs_message *message)
 {
 	void *raw_data = malloc(SRS_DATA_MAX_SIZE);
 	struct srs_header *header;
 	int rc;
 
-	rc = read(srs_server->client_fd, raw_data, SRS_DATA_MAX_SIZE);
+	rc = read(client_fd, raw_data, SRS_DATA_MAX_SIZE);
 	if(rc < (int)sizeof(struct srs_header)) {
 		return -1;
 	}
@@ -126,31 +104,7 @@ int srs_server_recv(struct srs_server *srs_server, struct srs_message *message)
 	return 0;
 }
 
-int srs_server_accept(struct srs_server *srs_server)
-{
-	int client_fd = -1;
-	struct sockaddr_un client_addr;
-	int client_addr_len;
-
-	if(srs_server->client_fd > 0) {
-		return 0;
-	}
-
-	client_fd = accept(srs_server->server_fd,
-		(struct sockaddr*) &client_addr, &client_addr_len);
-
-	if(client_fd > 0) {
-		srs_server->client_fd = client_fd;
-		srs_server->client_addr = client_addr;
-		srs_server->client_addr_len = client_addr_len;
-
-		return 0;
-	}
-
-	return -1;
-}
-
-void srs_control_ping(struct srs_message *message)
+void srs_control_ping(int fd, struct srs_message *message)
 {
 	int caffe;
 
@@ -160,11 +114,11 @@ void srs_control_ping(struct srs_message *message)
 	caffe=*((int *) message->data);
 
 	if(caffe == SRS_CONTROL_CAFFE) {
-		srs_server_send(SRS_CONTROL_PING, &caffe, sizeof(caffe));
+		srs_server_send(fd, SRS_CONTROL_PING, &caffe, sizeof(caffe));
 	}
 }
 
-int srs_server_open(struct srs_server *srs_server)
+static int srs_server_open(void)
 {
 	int server_fd = -1;
 
@@ -174,26 +128,68 @@ int srs_server_open(struct srs_server *srs_server)
 		unlink(SRS_SOCKET_NAME);
 		server_fd = socket_local_server(SRS_SOCKET_NAME, ANDROID_SOCKET_NAMESPACE_ABSTRACT, SOCK_STREAM);
 
-		if(server_fd > 0)
+		if(server_fd >= 0)
 			break;
 
 		t++;
 	}
-	
-	if(server_fd < 0)
-		return -1;
 
-	srs_server->server_fd = server_fd;
-
-	return 0;
+	return server_fd;
 }
 
-int srs_read_loop(struct ril_client *client)
+static void* srs_process_client(void *pfd)
 {
-	struct srs_server *srs_server;
 	struct srs_message srs_message;
 	fd_set fds;
+	int client_fd = -1;
+	if (!pfd) {
+		LOGE("SRS client data is NULL");
+		goto fail;
+	}
+
+	client_fd = ((int*)pfd)[0];
+
+	while (1) {
+		if (client_fd < 0)
+			break;
+
+		FD_ZERO(&fds);
+		FD_SET(client_fd, &fds);
+
+		select(FD_SETSIZE, &fds, NULL, NULL, NULL);
+
+		if (FD_ISSET(client_fd, &fds)) {
+			if (srs_server_recv(client_fd, &srs_message) < 0) {
+				LOGE("SRS recv failed, aborting!");
+				break;
+			}
+
+			LOGD("SRS recv: command=%d data_len=%d",
+			     srs_message.command, srs_message.data_len);
+			hex_dump(srs_message.data, srs_message.data_len);
+
+			srs_dispatch(client_fd, &srs_message);
+
+			if (srs_message.data != NULL)
+				free(srs_message.data);
+		}
+	}
+
+fail:
+	if(client_fd >= 0) {
+		close(client_fd);
+	}
+
+	LOGE("SRS server client ended!");
+	return NULL;
+}
+
+static int srs_read_loop(struct ril_client *client)
+{
 	int rc;
+
+	struct sockaddr_un client_addr;
+	int client_addr_len;
 
 	if(client == NULL) {
 		LOGE("client is NULL, aborting!");
@@ -205,84 +201,82 @@ int srs_read_loop(struct ril_client *client)
 		return -1;
 	}
 
-	srs_server = (struct srs_server *) client->object;
+	int server_fd = ((int*)client->object)[0];
 
 	while(1) {
-		if(srs_server->server_fd < 0) {
+		if(server_fd < 0) {
 			LOGE("SRS client server_fd is negative, aborting!");
 			return -1;
 		}
 
-		rc = srs_server_accept(srs_server);
-
-		LOGE("SRS server accept!");
-
-		FD_ZERO(&fds);
-		FD_SET(srs_server->client_fd, &fds);
-
-		while(1) {
-			if(srs_server->client_fd < 0)
-				break;
-
-			select(FD_SETSIZE, &fds, NULL, NULL, NULL);
-
-			if(FD_ISSET(srs_server->client_fd, &fds)) {
-				if(srs_server_recv(srs_server, &srs_message) < 0) {
-					LOGE("SRS recv failed, aborting!");
-					break;
-				}
-
-				LOGD("SRS recv: command=%d data_len=%d", srs_message.command, srs_message.data_len);
-				hex_dump(srs_message.data, srs_message.data_len);
-
-				srs_dispatch(&srs_message);
-
-				if(srs_message.data != NULL)
-					free(srs_message.data);
-			}
+		rc = accept(server_fd, (struct sockaddr*)&client_addr,
+			&client_addr_len);
+		if (rc < 0) {
+			LOGE("SRS Failed to accept errno %d error %s",
+				errno, strerror(errno));
+			return -1;
 		}
-
-		if(srs_server->client_fd > 0) {
-			close(srs_server->client_fd);
-			srs_server->client_fd = -1;
+		LOGI("SRS accepted fd %d", rc);
+		int *pfd = (int*)malloc(sizeof(int));
+		if (!pfd) {
+			LOGE("out of memory for the client socket");
+			close(rc);
+			return -1;
 		}
+		*pfd = rc;
 
-		LOGE("SRS server client ended!");
+		pthread_t t;
+		if (pthread_create(&t, NULL, srs_process_client, pfd)) {
+			LOGE("SRS failed to start client thread errno %d error %s",
+				errno, strerror(errno));
+			close(rc);
+			return -1;
+		}
 	}
 
 	return 0;
 }
 
-int srs_create(struct ril_client *client)
+static int srs_create(struct ril_client *client)
 {
-	struct srs_server *srs_server;
+	int *srs_server = NULL;
 
 	LOGD("Creating new SRS client");
 
-	srs_server = srs_server_new();
-	client->object = (void *) srs_server;
+	srs_server = malloc(sizeof(int));
+	if (!srs_server) {
+		LOGE("SRS out of memory for server fd");
+		goto fail;
+	}
 
-	if(srs_server_open(srs_server) < 0) {
+	client->object = (void *) srs_server;
+	if((*srs_server = srs_server_open()) < 0) {
 		LOGE("%s: samsung-ril-socket server open failed", __FUNCTION__);
-		return -1;
+		goto fail;
 	}
 
 	return 0;
+
+fail:
+	if (srs_server) {
+		free(srs_server);
+	}
+	return -1;
 }
 
-int srs_destroy(struct ril_client *client)
+static int srs_destroy(struct ril_client *client)
 {
-	struct srs_server *srs_server = (struct srs_server *) client->object;
-	
-	if(srs_server == NULL)
+	if (!client) {
 		return 0;
+	}
 
-	if(srs_server->client_fd)
-		close(srs_server->client_fd);
-	
-	close(srs_server->server_fd);
+	int *srs_server = (int*) client->object;
+	if (!srs_server) {
+		return 0;
+	}
 
-	srs_server_free(srs_server);
+	close(*srs_server);
+	free(srs_server);
 
 	return 0;
 }

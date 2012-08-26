@@ -30,21 +30,7 @@
 
 #include <samsung-ril-socket.h>
 
-struct srs_server {
-	int server_fd;
-	int client_fd;
-	struct sockaddr_un client_addr;
-	int client_addr_len;
-};
-
 extern struct ril_client_funcs srs_client_funcs;
-
-struct srs_server *srs_server_new(void);
-int srs_server_send(unsigned short command, void *data, int data_len);
-int srs_server_recv(struct srs_server *srs_server, struct srs_message *message);
-int srs_server_accept(struct srs_server *srs_server);
-int srs_server_open(struct srs_server *srs_server);
-
-void srs_control_ping(struct srs_message *message);
+extern void srs_control_ping(int fd, struct srs_message *message);
 
 #endif
