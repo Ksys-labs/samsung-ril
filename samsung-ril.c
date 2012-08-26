@@ -57,6 +57,16 @@ struct ril_client *srs_client;
 const struct RIL_Env *ril_env;
 struct ril_state ril_state;
 
+static pthread_mutex_t ril_mutex = PTHREAD_MUTEX_INITIALIZER; 
+
+static void ril_lock(void) {
+	pthread_mutex_lock(&ril_mutex);
+}
+
+static void ril_unlock(void) {
+	pthread_mutex_unlock(&ril_mutex);
+}
+
 /**
  * RIL request token
  */
@@ -163,6 +173,7 @@ void ril_tokens_check(void)
 
 void ipc_fmt_dispatch(struct ipc_message_info *info)
 {
+	ril_lock();
 	switch(IPC_COMMAND(info)) {
 		/* GEN */
 		case IPC_GEN_PHONE_RES:
@@ -278,10 +289,12 @@ void ipc_fmt_dispatch(struct ipc_message_info *info)
 			LOGD("Unhandled command: %s (%04x)", ipc_command_to_str(IPC_COMMAND(info)), IPC_COMMAND(info));
 			break;
 	}
+	ril_unlock();
 }
 
 void ipc_rfs_dispatch(struct ipc_message_info *info)
 {
+	ril_lock();
 	switch(IPC_COMMAND(info)) {
 		case IPC_RFS_NV_READ_ITEM:
 			ipc_rfs_nv_read_item(info);
@@ -293,10 +306,12 @@ void ipc_rfs_dispatch(struct ipc_message_info *info)
 			LOGD("Unhandled command: %s (%04x)", ipc_command_to_str(IPC_COMMAND(info)), IPC_COMMAND(info));
 			break;
 	}
+	ril_unlock();
 }
 
 void srs_dispatch(struct srs_message *message)
 {
+	ril_lock();
 	switch(message->command) {
 		case SRS_CONTROL_PING:
 			srs_control_ping(message);
@@ -314,6 +329,7 @@ void srs_dispatch(struct srs_message *message)
 			LOGD("Unhandled command: (%04x)", message->command);
 			break;
 	}
+	ril_unlock();
 }
 
 /*
@@ -333,8 +349,11 @@ int ril_modem_check(void)
 
 void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 {
-	if(ril_modem_check() < 0)
+	ril_lock();
+	if(ril_modem_check() < 0) {
 		RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
+		goto done;
+	}
 
 	switch(request) {
 		/* PWR */
@@ -487,6 +506,8 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 			RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
 			break;
 	}
+done:
+	ril_unlock();
 }
 
 /**
@@ -555,9 +576,9 @@ const RIL_RadioFunctions *RIL_Init(const struct RIL_Env *env, int argc, char **a
 
 	ril_env = env;
 
-ipc_fmt:
 	LOGD("Creating IPC FMT client");
 
+	ril_lock();
 	ipc_fmt_client = ril_client_new(&ipc_fmt_client_funcs);
 	rc = ril_client_create(ipc_fmt_client);
 
@@ -618,6 +639,7 @@ srs:
 end:
 	ril_globals_init();
 	ril_state_lpm();
+	ril_unlock();
 
 	return &ril_ops;
 }
