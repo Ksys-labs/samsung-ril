@@ -32,6 +32,11 @@ void ipc2ril_rssi(unsigned char rssi, RIL_SignalStrength *ss)
 {
 	int ril_rssi;
 
+	if (!ss) {
+		LOGE("%s: ss is NULL", __func__);
+		return;
+	}
+
 	memset(ss, 0, sizeof(ss));
 
 	if(rssi > 0x6f) {
@@ -71,6 +76,11 @@ void ipc_disp_icon_info(struct ipc_message_info *info)
 	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
 
+	if (!info) {
+		LOGE("%s: info is NULL", __func__);
+		return;
+	}
+
 	if(info->type == IPC_TYPE_NOTI && icon_info->rssi == 0xff)
 		return;
 
@@ -87,13 +97,24 @@ void ipc_disp_icon_info(struct ipc_message_info *info)
 
 void ipc_disp_rssi_info(struct ipc_message_info *info)
 {
-	struct ipc_disp_rssi_info *rssi_info = (struct ipc_disp_rssi_info *) info->data;
+	struct ipc_disp_rssi_info *rssi_info;
 	RIL_SignalStrength ss;
 	int rssi;
 
 	/* Don't consider this if modem isn't in normal power mode. */
 	if(ril_state.power_mode < POWER_MODE_NORMAL)
 		return;
+	
+	if (!info) {
+		LOGE("%s: info is NULL", __func__);
+		return;
+	}
+
+	rssi_info = (struct ipc_disp_rssi_info *) info->data;
+	if (!rssi_info) {
+		LOGE("%s: rssi_info is NULL", __func__);
+		return;
+	}
 
 	ipc2ril_rssi(rssi_info->rssi, &ss);
 
